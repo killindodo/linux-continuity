@@ -797,3 +797,47 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* Remote Connectivity Card */
+.remote-tunnel-box {
+  background-color: #10131b;
+  border: 1px solid #232838;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.remote-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.remote-label {
+  color: var(--text-muted);
+}
+
+.remote-val {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.remote-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.code-box {
+  background-color: #07090e;
+  border: 1px solid #1e2434;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #50fa7b;
+  word-break: break-all;
+  user-select: all;
+  margin-top: 4px;
+}

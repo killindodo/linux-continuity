@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Remote Terminal • killindodo</title>
+  <link rel="icon" type="image/png" href="/static/icons/icon.png">
+  <link rel="stylesheet" href="/static/css/xterm.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: #0c0e14;
+    }
+    .standalone-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100%;
+    }
+    .standalone-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background-color: #151821;
+      border-bottom: 1px solid #242938;
+      flex-shrink: 0;
+    }
+    .standalone-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #00d2ff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .standalone-title span {
+      font-size: 11px;
+      color: #8e95a5;
+      font-weight: normal;
+    }
+    .standalone-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #termStandalone {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      padding: 4px;
+      background-color: #0c0e14;
+      overflow: hidden;
+    }
+    .link-btn {
+      background-color: #242938;
+      color: #00d2ff;
+      border: 1px solid #363d52;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="standalone-container">
+    <!-- Standalone Header -->
+    <header class="standalone-nav">
+      <div class="standalone-title">
+        📟 Remote Shell
+        <span>(killindodo)</span>
+      </div>
+      <div class="standalone-right">
+        <div id="connStatus" class="status-badge disconnected">Connecting...</div>
+        <button id="btnFullscreen" class="link-btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
+        <a href="/" class="link-btn" title="Return to Main Hub">🏠 Full Hub</a>
+      </div>
+    </header>
+
+    <!-- Session Bar -->
+    <div class="term-session-bar">
+      <div class="session-selector">
+        <label for="termSessionSelect">Session:</label>
+        <select id="termSessionSelect">
+          <option value="main">main</option>
+        </select>
+        <button class="kbtn action" id="btnNewSession">+ New</button>
+      </div>
+      <div class="session-actions">
+        <button class="kbtn action" id="btnLaunchPcTerm">💻 Open on PC</button>
+      </div>
+    </div>
+
+    <!-- Mobile Keyboard Helper Toolbar -->
+    <div class="key-toolbar">
+      <button class="kbtn" data-key="\x1b">ESC</button>
+      <button class="kbtn" data-key="\t">TAB</button>
+      <button class="kbtn" data-key="\x03">Ctrl+C</button>
+      <button class="kbtn" data-key="\x04">Ctrl+D</button>
+      <button class="kbtn" data-key="\x1a">Ctrl+Z</button>
+      <button class="kbtn" data-key="|">|</button>
+      <button class="kbtn" data-key="~">~</button>
+      <button class="kbtn" data-key="/">/</button>
+      <button class="kbtn" data-key="-">-</button>
+      <button class="kbtn" data-key="_">_</button>
+      <button class="kbtn" data-key="\x1b[A">↑</button>
+      <button class="kbtn" data-key="\x1b[B">↓</button>
+      <button class="kbtn" data-key="\x1b[D">←</button>
+      <button class="kbtn" data-key="\x1b[C">→</button>
+      <button class="kbtn" data-key="\x1b[5~">PgUp</button>
+      <button class="kbtn" data-key="\x1b[6~">PgDn</button>
+      <button class="kbtn action" id="btnReconnectTerm">Reconnect</button>
+      <button class="kbtn action" id="btnClearTerm">Clear</button>
+    </div>
+
+    <!-- Terminal Canvas -->
+    <div id="termStandalone"></div>
+
+    <!-- PIN Security Modal -->
+    <div id="pinModal" class="pin-modal" style="display:none;">
+      <div class="pin-card">
+        <span class="pin-icon">🔒</span>
+        <h2>Security PIN Required</h2>
+        <p>Enter the 4-digit PIN shown on your Linux PC desktop dashboard to authorize remote terminal access.</p>
+        <div class="pin-input-box">
+          <input type="password" id="pinInput" maxlength="8" placeholder="••••" autocomplete="off" autofocus>
+        </div>
+        <button id="btnUnlock" class="btn-primary">Unlock Terminal</button>
+        <p id="pinError" class="pin-error" style="display:none;">Invalid PIN. Please check your PC screen.</p>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="/static/js/xterm.js"></script>
+  <script src="/static/js/xterm-addon-fit.js"></script>
+  <script src="/static/js/terminal_standalone.js"></script>
+</body>
+</html>

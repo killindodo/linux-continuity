@@ -16,7 +16,7 @@ from PyQt6.QtGui import QIcon, QFont, QDesktopServices
 
 from ui.qr_widget import QRWidget
 from ui.tray import ContinuityTrayIcon
-from core.tunnel import CloudflareTunnel, get_tailscale_ip
+from core.tunnel import tunnel_mgr, get_tailscale_ip, get_ssh_info
 from core.terminal_pty import launch_desktop_terminal
 from server import auth_mgr
 
@@ -31,8 +31,10 @@ class ContinuityWindow(QMainWindow):
         self.current_url = self.local_url
         self.icon_path = os.path.join(project_root, "static", "icons", "icon.png")
 
-        # Tunnel manager
-        self.tunnel = CloudflareTunnel(port, on_url_ready=self._on_tunnel_ready)
+        # Shared Tunnel manager
+        self.tunnel = tunnel_mgr
+        self.tunnel.local_port = port
+        self.tunnel.add_url_listener(self._on_tunnel_ready)
 
         self._init_window()
         self._setup_ui()

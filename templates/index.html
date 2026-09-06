@@ -56,11 +56,21 @@
             <button class="kbtn" data-key="\x1b">ESC</button>
             <button class="kbtn" data-key="\t">TAB</button>
             <button class="kbtn" data-key="\x03">Ctrl+C</button>
+            <button class="kbtn" data-key="\x04">Ctrl+D</button>
             <button class="kbtn" data-key="\x1a">Ctrl+Z</button>
+            <button class="kbtn" data-key="|">|</button>
+            <button class="kbtn" data-key="~">~</button>
+            <button class="kbtn" data-key="/">/</button>
+            <button class="kbtn" data-key="-">-</button>
+            <button class="kbtn" data-key="_">_</button>
             <button class="kbtn" data-key="\x1b[A">↑</button>
             <button class="kbtn" data-key="\x1b[B">↓</button>
             <button class="kbtn" data-key="\x1b[D">←</button>
             <button class="kbtn" data-key="\x1b[C">→</button>
+            <button class="kbtn" data-key="\x1b[5~">PgUp</button>
+            <button class="kbtn" data-key="\x1b[6~">PgDn</button>
+            <button class="kbtn action" id="btnMainTermFullscreen" title="Toggle Fullscreen">⛶</button>
+            <a href="/terminal" target="_blank" class="kbtn action" title="Open Dedicated Standalone Terminal" style="text-decoration:none;">↗ Popout</a>
             <button class="kbtn action" id="btnReconnectTerm">Reconnect</button>
             <button class="kbtn action" id="btnClearTerm">Clear</button>
           </div>
@@ -212,6 +222,36 @@
               <span class="act-icon">📂</span>
               <span class="act-title">Open Downloads</span>
             </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>🌐 Remote Connectivity (Away from Desk)</h3>
+            <button id="btnRefreshTunnelStatus" class="btn-sm">Refresh</button>
+          </div>
+          
+          <div class="remote-tunnel-box">
+            <div class="remote-row">
+              <span class="remote-label">Cloudflare Public HTTPS:</span>
+              <span class="remote-val" id="remoteTunnelStatus">Inactive</span>
+            </div>
+            <div class="remote-actions-row">
+              <button id="btnTogglePublicTunnel" class="btn-sm">⚡ Start Public Tunnel</button>
+              <button id="btnCopyTunnelUrl" class="btn-sm" style="display:none;">📋 Copy URL</button>
+            </div>
+          </div>
+
+          <div class="remote-tunnel-box" style="margin-top: 10px;">
+            <div class="remote-row">
+              <span class="remote-label">Tailscale Mesh VPN:</span>
+              <span class="remote-val" id="remoteTailscaleIp">...</span>
+            </div>
+            <div class="remote-row" style="margin-top: 6px;">
+              <span class="remote-label">SSH Remote Command (Termux / JuiceSSH):</span>
+            </div>
+            <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
+            <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
           </div>
         </div>
 

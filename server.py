@@ -1,5 +1,7 @@
 """
 Linux Continuity Server - Tornado Async Web & WebSocket Gateway
+Supports real-time terminal streaming over WebSockets, shared tmux sessions,
+clipboard sync, file transfers, and remote connectivity (Cloudflare Tunnels & Tailscale).
 Developed by killindodo
 """
 
@@ -29,6 +31,11 @@ from core.screen_mirror import (
     click_screen,
     send_keystroke,
     type_text
+)
+from core.tunnel import (
+    tunnel_mgr,
+    get_tailscale_ip,
+    get_ssh_info
 )
 from core.clipboard_sync import ClipboardSync
 from core.file_manager import FileManager
@@ -92,9 +99,24 @@ class IndexHandler(tornado.web.RequestHandler):
         self.render(os.path.join(PROJECT_ROOT, "templates", "index.html"))
 
 
+class TerminalStandaloneHandler(tornado.web.RequestHandler):
+    """Direct, distraction-free full-screen terminal page for mobile browsers."""
+    def get(self):
+        self.render(os.path.join(PROJECT_ROOT, "templates", "terminal.html"))
+
+
 class TerminalWebSocket(tornado.websocket.WebSocketHandler):
+    # Keepalive heartbeats to prevent mobile cellular carrier NAT & Cloudflare idle timeouts
+    @property
+    def ping_interval(self):
+        return 15  # seconds
+
+    @property
+    def ping_timeout(self):
+        return 35  # seconds
+
     def check_origin(self, origin):
-        return True  # Allow local and remote connections
+        return True  # Allow local network and remote tunnel connections
 
     def open(self):
         token = self.get_argument("token", None)
@@ -126,6 +148,9 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
                 cols = int(msg.get("cols", 80))
                 rows = int(msg.get("rows", 24))
                 self.session.resize(cols, rows)
+            elif msg_type == "ping":
+                # Latency heartbeat
+                self.write_message(json.dumps({"type": "pong", "t": msg.get("t", 0)}))
         except Exception:
             # Raw string fallback
             if isinstance(message, str):
@@ -137,6 +162,14 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
 
 
 class ClipboardWebSocket(tornado.websocket.WebSocketHandler):
+    @property
+    def ping_interval(self):
+        return 15
+
+    @property
+    def ping_timeout(self):
+        return 35
+
     def check_origin(self, origin):
         return True
 
@@ -236,6 +269,49 @@ class TerminalsApiHandler(tornado.web.RequestHandler):
             elif action == "launch_pc":
                 ok = launch_desktop_terminal(name)
                 self.write(json.dumps({"status": "ok" if ok else "error", "launched": ok}))
+            else:
+                self.set_status(400)
+                self.write(json.dumps({"status": "error", "message": "Unknown action"}))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class TunnelApiHandler(tornado.web.RequestHandler):
+    """Remote connectivity status and control endpoint (Tailscale, Cloudflare, SSH)."""
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({
+            "status": "ok",
+            "tunnel_active": tunnel_mgr.is_running,
+            "tunnel_url": tunnel_mgr.public_url,
+            "tailscale_ip": get_tailscale_ip(),
+            "local_ip": get_local_ip(),
+            "ssh": get_ssh_info()
+        }))
+
+    def post(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            data = json.loads(self.request.body)
+            action = data.get("action")
+            if action == "start":
+                ok = tunnel_mgr.start()
+                self.write(json.dumps({"status": "ok" if ok else "error", "started": ok}))
+            elif action == "stop":
+                tunnel_mgr.stop()
+                self.write(json.dumps({"status": "ok", "stopped": True}))
             else:
                 self.set_status(400)
                 self.write(json.dumps({"status": "error", "message": "Unknown action"}))
@@ -347,8 +423,11 @@ class InfoHandler(tornado.web.RequestHandler):
         self.write(json.dumps({
             "hostname": socket.gethostname(),
             "ip": get_local_ip(),
+            "tailscale_ip": get_tailscale_ip(),
+            "tunnel_active": tunnel_mgr.is_running,
+            "tunnel_url": tunnel_mgr.public_url,
             "author": "killindodo",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "require_pin": auth_mgr.require_pin
         }))
 
@@ -356,6 +435,7 @@ class InfoHandler(tornado.web.RequestHandler):
 def make_app():
     return tornado.web.Application([
         (r"/", IndexHandler),
+        (r"/terminal", TerminalStandaloneHandler),
         (r"/ws/terminal", TerminalWebSocket),
         (r"/ws/clipboard", ClipboardWebSocket),
         (r"/api/auth", AuthHandler),
@@ -363,6 +443,7 @@ def make_app():
         (r"/api/files", FilesListHandler),
         (r"/api/download/(.+)", DownloadHandler),
         (r"/api/terminals", TerminalsApiHandler),
+        (r"/api/tunnel", TunnelApiHandler),
         (r"/api/screen", ScreenCaptureHandler),
         (r"/api/screen/click", ScreenClickHandler),
         (r"/api/screen/key", ScreenKeyHandler),
@@ -373,15 +454,18 @@ def make_app():
 
 
 def run_server(port: int = 8080):
+    tunnel_mgr.local_port = port
     app = make_app()
     app.listen(port, address="0.0.0.0")
     ip = get_local_ip()
+    ts_ip = get_tailscale_ip()
     print("=" * 60)
     print("      Linux Continuity Server (by killindodo)")
     print("=" * 60)
-    print(f"[*] Server running on: http://{ip}:{port}")
-    print(f"[*] Local access:      http://127.0.0.1:{port}")
-    print("[*] Open the URL on your Android phone (or scan QR code)")
+    print(f"[*] Local Wi-Fi:   http://{ip}:{port}")
+    if ts_ip:
+        print(f"[*] Tailscale VPN: http://{ts_ip}:{port}")
+    print(f"[*] Standalone:    http://{ip}:{port}/terminal")
     print("=" * 60)
     tornado.ioloop.IOLoop.current().start()
 

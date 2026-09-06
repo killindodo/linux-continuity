@@ -110,26 +110,39 @@ To watch a command or program running on your PC from your Android phone:
 
 ---
 
-## Remote Access (When Away from PC)
+## Remote Terminal Connection (When Away from PC)
 
-When you are away from your PC (e.g., outside on 4G/5G mobile data or connected to different Wi-Fi networks), you can connect remotely using either of two built-in methods:
+When you are away from your PC (e.g., outside on 4G/5G mobile data or connected to external Wi-Fi), you have 3 powerful ways to watch and control your PC terminal remotely:
 
-### Method A: Cloudflare Public Tunnel (1-Click, Zero Config)
-Click **"☁️ Public Remote Tunnel"** -> **"⚡ Start Public Tunnel"** in the desktop app.
-- Generates an encrypted public HTTPS URL (`https://*.trycloudflare.com`).
-- Works worldwide on cellular data or any external Wi-Fi.
-- Accessible from any browser with zero client app installation required on your phone.
-- Protected by your 4-digit Security PIN.
+### Option 1: Mobile Web Terminal (Browser / Zero Install)
+- **Cloudflare Public Tunnel**: Click **"☁️ Public Remote Tunnel"** -> **"⚡ Start Public Tunnel"** (can also be toggled directly from your phone in the Controls tab).
+  - Gives you an encrypted public HTTPS URL (`https://*.trycloudflare.com`).
+  - Protected by your 4-digit Security PIN.
+  - Built-in 15-second WebSocket heartbeats prevent mobile cellular carrier drops and NAT timeouts.
+  - Auto-reconnects with exponential backoff on network switches or screen wake.
+- **Dedicated Standalone Terminal**: Open `https://<tunnel>/terminal` or `http://<tailscale-ip>:8080/terminal` for a clean, distraction-free full-screen shell that you can add directly to your Android Home Screen.
 
-### Method B: Tailscale Mesh VPN (Private Peer-to-Peer)
+### Option 2: Tailscale Mesh VPN (Private Peer-to-Peer)
 Click **"🌐 Tailscale VPN"** in the desktop app.
 1. Connect your PC to Tailscale:
    ```bash
    sudo tailscale up
    ```
 2. Install the free **Tailscale** app on your Android phone and sign in with the same account.
-3. Open `http://<tailscale-ip>:8080` in your phone browser.
-4. Enjoy a direct, end-to-end encrypted WireGuard connection anywhere in the world.
+3. Open `http://<tailscale-ip>:8080` (or `http://<tailscale-ip>:8080/terminal`) in your phone browser.
+4. Direct, end-to-end encrypted WireGuard connection with minimal latency.
+
+### Option 3: Direct Mobile SSH Terminal (Termux / JuiceSSH / Termius)
+If you prefer using a native terminal app on Android:
+1. Connect via Tailscale mesh:
+   ```bash
+   ssh killindodo@100.66.109.94
+   ```
+2. Or attach directly into the live shared tmux session running on your PC:
+   ```bash
+   ssh killindodo@100.66.109.94 -t tmux new-session -A -s main
+   ```
+   Whatever you do in this SSH terminal is simultaneously visible on your laptop screen and the Continuity web app!
 
 ---
 

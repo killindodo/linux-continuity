@@ -1,15 +1,16 @@
 """
 Remote Tunnel & Network Detection Engine for Linux Continuity.
-Supports Tailscale Mesh VPN and Cloudflare Secure Public Tunnels.
+Supports Tailscale Mesh VPN, Cloudflare Secure Public Tunnels, and OpenSSH remote info.
 Developed by killindodo
 """
 
 import os
 import re
 import shutil
+import getpass
 import subprocess
 import threading
-from typing import Optional, Callable
+from typing import Optional, Callable, List, Dict, Any
 
 
 def get_tailscale_ip() -> Optional[str]:
@@ -33,23 +34,64 @@ def get_tailscale_ip() -> Optional[str]:
     return None
 
 
+def get_ssh_info() -> Dict[str, Any]:
+    """Returns status and connection commands for local and remote SSH access."""
+    is_active = False
+    try:
+        res = subprocess.run(
+            ["systemctl", "is-active", "ssh"],
+            capture_output=True,
+            text=True,
+            timeout=1.5
+        )
+        is_active = res.stdout.strip() == "active"
+    except Exception:
+        pass
+
+    user = getpass.getuser()
+    ts_ip = get_tailscale_ip()
+
+    return {
+        "active": is_active,
+        "user": user,
+        "tailscale_ip": ts_ip,
+        "cmd_tailscale": f"ssh {user}@{ts_ip}" if ts_ip else None,
+        "cmd_tmux_remote": f"ssh {user}@{ts_ip} -t tmux new-session -A -s main" if ts_ip else None
+    }
+
+
 class CloudflareTunnel:
     """Manages an ephemeral or permanent Cloudflare Tunnel via cloudflared."""
 
     def __init__(self, local_port: int = 8080, on_url_ready: Optional[Callable[[str], None]] = None):
         self.local_port = local_port
-        self.on_url_ready = on_url_ready
         self.public_url: Optional[str] = None
         self.process: Optional[subprocess.Popen] = None
         self._thread: Optional[threading.Thread] = None
         self._running = False
+        self._callbacks: List[Callable[[str], None]] = []
+        if on_url_ready:
+            self._callbacks.append(on_url_ready)
+
+    @property
+    def is_running(self) -> bool:
+        return self._running and self.process is not None and self.process.poll() is None
+
+    def add_url_listener(self, cb: Callable[[str], None]):
+        if cb not in self._callbacks:
+            self._callbacks.append(cb)
+        if self.public_url:
+            try:
+                cb(self.public_url)
+            except Exception:
+                pass
 
     @staticmethod
     def is_installed() -> bool:
         return bool(shutil.which("cloudflared") or os.path.exists(os.path.expanduser("~/.local/bin/cloudflared")))
 
     def start(self) -> bool:
-        if self._running:
+        if self.is_running:
             return True
 
         bin_path = shutil.which("cloudflared") or os.path.expanduser("~/.local/bin/cloudflared")
@@ -87,8 +129,11 @@ class CloudflareTunnel:
             match = url_pattern.search(line)
             if match and not self.public_url:
                 self.public_url = match.group(0)
-                if self.on_url_ready:
-                    self.on_url_ready(self.public_url)
+                for cb in list(self._callbacks):
+                    try:
+                        cb(self.public_url)
+                    except Exception:
+                        pass
 
     def stop(self):
         self._running = False
@@ -103,3 +148,7 @@ class CloudflareTunnel:
                     pass
             self.process = None
         self.public_url = None
+
+
+# Shared singleton tunnel instance
+tunnel_mgr = CloudflareTunnel(local_port=8080)

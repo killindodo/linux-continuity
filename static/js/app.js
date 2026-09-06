@@ -157,10 +157,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let termWs = null;
   let currentSession = 'main';
+  let reconnectTimer = null;
+  let reconnectAttempts = 0;
+  let pingIntervalTimer = null;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
   function connectTerminal(sessionName) {
     if (sessionName) currentSession = sessionName;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (termWs) {
       try { termWs.close(); } catch (e) {}
       termWs = null;
@@ -172,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     termWs.binaryType = 'arraybuffer';
 
     termWs.onopen = () => {
+      reconnectAttempts = 0;
       setStatus(true, 'Connected');
       fitAddon.fit();
       termWs.send(JSON.stringify({
@@ -179,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cols: term.cols,
         rows: term.rows
       }));
+      startPingHeartbeat();
     };
 
     termWs.onmessage = (evt) => {
@@ -187,6 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const msg = JSON.parse(evt.data);
           if (msg.type === 'output') {
             term.write(msg.data);
+          } else if (msg.type === 'pong') {
+            const rtt = Date.now() - (msg.t || Date.now());
+            setStatus(true, `Connected (${rtt}ms)`);
           }
         } catch (e) {
           term.write(evt.data);
@@ -198,14 +210,55 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     termWs.onclose = () => {
+      stopPingHeartbeat();
       setStatus(false, 'Disconnected');
-      term.write('\r\n\x1b[31m[!] Terminal session detached or closed.\x1b[0m\r\n');
+      scheduleReconnect();
     };
 
     termWs.onerror = () => {
       setStatus(false, 'Conn Error');
     };
   }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectAttempts++;
+    const delay = Math.min(8000, 1500 * Math.pow(1.3, reconnectAttempts - 1));
+    const sec = Math.round(delay / 1000);
+    setStatus(false, `Reconnecting in ${sec}s...`);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectTerminal(currentSession);
+    }, delay);
+  }
+
+  function startPingHeartbeat() {
+    stopPingHeartbeat();
+    pingIntervalTimer = setInterval(() => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(JSON.stringify({ type: 'ping', t: Date.now() }));
+      }
+    }, 10000);
+  }
+
+  function stopPingHeartbeat() {
+    if (pingIntervalTimer) {
+      clearInterval(pingIntervalTimer);
+      pingIntervalTimer = null;
+    }
+  }
+
+  // Mobile Screen Wake Auto-reconnect
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const pane = document.getElementById('tab-terminal');
+      if (pane && pane.classList.contains('active')) {
+        if (!termWs || termWs.readyState === WebSocket.CLOSED || termWs.readyState === WebSocket.CLOSING) {
+          connectTerminal(currentSession);
+        }
+      }
+    }
+  });
 
   term.onData((data) => {
     if (termWs && termWs.readyState === WebSocket.OPEN) {
@@ -231,6 +284,20 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnClearTerm').addEventListener('click', () => {
     term.clear();
   });
+
+  const btnMainTermFullscreen = document.getElementById('btnMainTermFullscreen');
+  if (btnMainTermFullscreen) {
+    btnMainTermFullscreen.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        btnMainTermFullscreen.textContent = '✕';
+      } else {
+        document.exitFullscreen().catch(() => {});
+        btnMainTermFullscreen.textContent = '⛶';
+      }
+      setTimeout(() => fitAddon.fit(), 300);
+    });
+  }
 
   // Session Management Controls
   const termSessionSelect = document.getElementById('termSessionSelect');
@@ -723,11 +790,109 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ----------------------------------------------------
+  // 6. Remote Connectivity & SSH Controller
+  // ----------------------------------------------------
+  const remoteTunnelStatus = document.getElementById('remoteTunnelStatus');
+  const remoteTailscaleIp = document.getElementById('remoteTailscaleIp');
+  const remoteSshCmd = document.getElementById('remoteSshCmd');
+  const btnTogglePublicTunnel = document.getElementById('btnTogglePublicTunnel');
+  const btnCopyTunnelUrl = document.getElementById('btnCopyTunnelUrl');
+  const btnCopySshCmd = document.getElementById('btnCopySshCmd');
+  const btnRefreshTunnelStatus = document.getElementById('btnRefreshTunnelStatus');
+  let currentTunnelUrl = '';
+  let currentSshCmd = '';
+
+  async function loadTunnelStatus() {
+    if (!remoteTunnelStatus) return;
+    try {
+      const res = await fetch(`/api/tunnel?token=${encodeURIComponent(authToken)}`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        if (data.tunnel_active && data.tunnel_url) {
+          currentTunnelUrl = data.tunnel_url;
+          remoteTunnelStatus.textContent = '● Active (Public HTTPS)';
+          remoteTunnelStatus.style.color = '#34c759';
+          btnTogglePublicTunnel.textContent = '⏹ Stop Public Tunnel';
+          btnCopyTunnelUrl.style.display = 'inline-block';
+        } else {
+          currentTunnelUrl = '';
+          remoteTunnelStatus.textContent = 'Inactive';
+          remoteTunnelStatus.style.color = '#8e95a5';
+          btnTogglePublicTunnel.textContent = '⚡ Start Public Tunnel';
+          btnCopyTunnelUrl.style.display = 'none';
+        }
+
+        if (data.tailscale_ip) {
+          remoteTailscaleIp.textContent = `${data.tailscale_ip} (Active)`;
+          remoteTailscaleIp.style.color = '#34c759';
+        } else {
+          remoteTailscaleIp.textContent = 'Inactive / Not Connected';
+          remoteTailscaleIp.style.color = '#8e95a5';
+        }
+
+        if (data.ssh && data.ssh.cmd_tmux_remote) {
+          currentSshCmd = data.ssh.cmd_tmux_remote;
+          remoteSshCmd.textContent = currentSshCmd;
+        } else if (data.ssh && data.ssh.cmd_tailscale) {
+          currentSshCmd = data.ssh.cmd_tailscale;
+          remoteSshCmd.textContent = currentSshCmd;
+        } else {
+          currentSshCmd = `ssh ${data.ssh?.user || 'killindodo'}@${data.local_ip}`;
+          remoteSshCmd.textContent = currentSshCmd;
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (btnTogglePublicTunnel) {
+    btnTogglePublicTunnel.addEventListener('click', async () => {
+      const isStarting = btnTogglePublicTunnel.textContent.includes('Start');
+      btnTogglePublicTunnel.textContent = isStarting ? 'Starting...' : 'Stopping...';
+      try {
+        const action = isStarting ? 'start' : 'stop';
+        await fetch(`/api/tunnel?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action })
+        });
+        showToast(isStarting ? 'Cloudflare Tunnel starting...' : 'Cloudflare Tunnel stopped');
+        setTimeout(loadTunnelStatus, 3000);
+      } catch (e) {
+        showToast('Tunnel request failed');
+        loadTunnelStatus();
+      }
+    });
+  }
+
+  if (btnCopyTunnelUrl) {
+    btnCopyTunnelUrl.addEventListener('click', () => {
+      if (currentTunnelUrl) {
+        navigator.clipboard.writeText(`${currentTunnelUrl}/?token=${authToken}`);
+        showToast('✓ Public Tunnel URL Copied!');
+      }
+    });
+  }
+
+  if (btnCopySshCmd) {
+    btnCopySshCmd.addEventListener('click', () => {
+      if (currentSshCmd) {
+        navigator.clipboard.writeText(currentSshCmd);
+        showToast('✓ SSH Command Copied!');
+      }
+    });
+  }
+
+  if (btnRefreshTunnelStatus) {
+    btnRefreshTunnelStatus.addEventListener('click', loadTunnelStatus);
+  }
+
   // Initialization
   function initAppConnections() {
     loadSessions();
     connectTerminal(currentSession);
     connectClipboard();
+    loadTunnelStatus();
   }
 
   // Load Host Info & Initialize Connection
