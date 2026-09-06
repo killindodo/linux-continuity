@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Linux Continuity • killindodo</title>
+  <link rel="icon" type="image/png" href="/static/icons/icon.png">
+  <link rel="stylesheet" href="/static/css/xterm.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="brand">
+        <img src="/static/icons/icon.png" class="brand-icon" alt="Logo">
+        <div>
+          <h1 class="brand-title">Linux Continuity</h1>
+          <span class="brand-sub">Developed by killindodo</span>
+        </div>
+      </div>
+      <div id="connStatus" class="status-badge disconnected">Connecting...</div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="terminal">📟 Terminal</button>
+      <button class="tab-btn" data-tab="clipboard">📋 Clipboard</button>
+      <button class="tab-btn" data-tab="files">📁 AirDrop Files</button>
+      <button class="tab-btn" data-tab="system">⚡ Controls</button>
+    </nav>
+
+    <!-- Main Content Panels -->
+    <main class="panel-content">
+      <!-- 1. Terminal Panel -->
+      <section id="tab-terminal" class="tab-pane active">
+        <div class="terminal-container">
+          <!-- Mobile Keyboard Helper Toolbar -->
+          <div class="key-toolbar">
+            <button class="kbtn" data-key="\x1b">ESC</button>
+            <button class="kbtn" data-key="\t">TAB</button>
+            <button class="kbtn" data-key="\x03">Ctrl+C</button>
+            <button class="kbtn" data-key="\x1a">Ctrl+Z</button>
+            <button class="kbtn" data-key="\x1b[A">↑</button>
+            <button class="kbtn" data-key="\x1b[B">↓</button>
+            <button class="kbtn" data-key="\x1b[D">←</button>
+            <button class="kbtn" data-key="\x1b[C">→</button>
+            <button class="kbtn action" id="btnReconnectTerm">Reconnect</button>
+            <button class="kbtn action" id="btnClearTerm">Clear</button>
+          </div>
+          <div id="terminal"></div>
+        </div>
+      </section>
+
+      <!-- 2. Clipboard Panel -->
+      <section id="tab-clipboard" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>PC Clipboard (Live Sync)</h3>
+            <button id="btnCopyFromPc" class="btn-sm">Copy to Phone</button>
+          </div>
+          <div id="pcClipboardText" class="clipboard-box placeholder">
+            Waiting for clipboard content from PC...
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Send to PC Clipboard</h3>
+          </div>
+          <textarea id="phoneClipboardInput" class="input-textarea" placeholder="Type or paste text here to immediately send to Linux PC..."></textarea>
+          <button id="btnSendToPc" class="btn-primary">⚡ Send to PC Clipboard</button>
+        </div>
+      </section>
+
+      <!-- 3. AirDrop Files Panel -->
+      <section id="tab-files" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>Send File to Linux PC</h3>
+          </div>
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" multiple style="display:none;">
+            <div class="drop-content">
+              <span class="drop-icon">📤</span>
+              <p>Tap to choose files or photos</p>
+              <span class="drop-sub">Saves straight to ~/Downloads on Linux</span>
+            </div>
+          </div>
+          <div id="uploadProgress" class="progress-bar-container" style="display:none;">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Download from PC (Recent Files)</h3>
+            <button id="btnRefreshFiles" class="btn-sm">Refresh</button>
+          </div>
+          <ul id="fileList" class="file-list">
+            <li class="file-item empty">Loading files...</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 4. System Controls Panel -->
+      <section id="tab-system" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>Quick Actions</h3>
+          </div>
+          <div class="action-grid">
+            <button class="action-card" data-action="lock_screen">
+              <span class="act-icon">🔒</span>
+              <span class="act-title">Lock Screen</span>
+            </button>
+            <button class="action-card" data-action="notify">
+              <span class="act-icon">🔔</span>
+              <span class="act-title">Ping Desktop</span>
+            </button>
+            <button class="action-card" data-action="vol_mute">
+              <span class="act-icon">🔇</span>
+              <span class="act-title">Mute Audio</span>
+            </button>
+            <button class="action-card" data-action="open_downloads">
+              <span class="act-icon">📂</span>
+              <span class="act-title">Open Downloads</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>System Information</h3>
+          </div>
+          <div class="sys-info-grid">
+            <div class="sys-item">
+              <span class="sys-label">Host</span>
+              <span class="sys-val" id="sysHost">Linux PC</span>
+            </div>
+            <div class="sys-item">
+              <span class="sys-label">IP Address</span>
+              <span class="sys-val" id="sysIp">...</span>
+            </div>
+            <div class="sys-item">
+              <span class="sys-label">Author</span>
+              <span class="sys-val">killindodo</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="/static/js/xterm.js"></script>
+  <script src="/static/js/xterm-addon-fit.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
