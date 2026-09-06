@@ -151,6 +151,20 @@
       </section>
     </main>
 
+    <!-- PIN Security Modal -->
+    <div id="pinModal" class="pin-modal" style="display:none;">
+      <div class="pin-card">
+        <span class="pin-icon">🔒</span>
+        <h2>Security PIN Required</h2>
+        <p>Enter the 4-digit PIN shown on your Linux PC desktop dashboard to authorize this device.</p>
+        <div class="pin-input-box">
+          <input type="password" id="pinInput" maxlength="8" placeholder="••••" autocomplete="off" autofocus>
+        </div>
+        <button id="btnUnlock" class="btn-primary">Unlock Device</button>
+        <p id="pinError" class="pin-error" style="display:none;">Invalid PIN. Please check your PC screen.</p>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
   </div>

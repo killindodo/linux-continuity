@@ -19,10 +19,12 @@ sys.path.insert(0, PROJECT_ROOT)
 from core.terminal_pty import TerminalSession
 from core.clipboard_sync import ClipboardSync
 from core.file_manager import FileManager
+from core.auth import AuthManager
 
 # Globals
 file_mgr = FileManager()
 clip_sync = ClipboardSync()
+auth_mgr = AuthManager()
 connected_clip_clients = set()
 
 
@@ -54,6 +56,24 @@ clip_sync.on_change = on_clipboard_changed
 clip_sync.start_polling()
 
 
+class AuthHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            pin = data.get("pin", "")
+            token = auth_mgr.verify_pin(pin)
+            if token:
+                self.set_header("Content-Type", "application/json")
+                self.write(json.dumps({"status": "success", "token": token}))
+            else:
+                self.set_status(401)
+                self.set_header("Content-Type", "application/json")
+                self.write(json.dumps({"status": "error", "message": "Invalid PIN"}))
+        except Exception as e:
+            self.set_status(400)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
 class IndexHandler(tornado.web.RequestHandler):
     def get(self):
         self.render(os.path.join(PROJECT_ROOT, "templates", "index.html"))
@@ -64,6 +84,11 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
         return True  # Allow local network connections
 
     def open(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.write_message(b"\r\n\x1b[31m[!] Unauthorized: Security PIN required.\x1b[0m\r\n", binary=True)
+            self.close()
+            return
         self.session = TerminalSession(on_output=self._on_pty_output)
 
     def _on_pty_output(self, data: bytes):
@@ -97,6 +122,10 @@ class ClipboardWebSocket(tornado.websocket.WebSocketHandler):
         return True
 
     def open(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.close()
+            return
         connected_clip_clients.add(self)
         # Send current clipboard immediately on connect
         current = clip_sync.get_clipboard()
@@ -186,7 +215,8 @@ class InfoHandler(tornado.web.RequestHandler):
             "hostname": socket.gethostname(),
             "ip": get_local_ip(),
             "author": "killindodo",
-            "version": "1.0.0"
+            "version": "1.0.0",
+            "require_pin": auth_mgr.require_pin
         }))
 
 
@@ -195,6 +225,7 @@ def make_app():
         (r"/", IndexHandler),
         (r"/ws/terminal", TerminalWebSocket),
         (r"/ws/clipboard", ClipboardWebSocket),
+        (r"/api/auth", AuthHandler),
         (r"/api/upload", UploadHandler),
         (r"/api/files", FilesListHandler),
         (r"/api/download/(.+)", DownloadHandler),

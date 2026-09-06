@@ -446,3 +446,72 @@ body {
 .toast.show {
   transform: translateX(-50%) translateY(0);
 }
+
+/* PIN Security Modal */
+.pin-modal {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(10, 12, 18, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 2000;
+}
+
+.pin-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.pin-icon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.pin-card h2 {
+  font-size: 18px;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.pin-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.pin-input-box input {
+  width: 160px;
+  font-size: 24px;
+  letter-spacing: 12px;
+  text-align: center;
+  background-color: #0c0e14;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  color: #00d2ff;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.pin-input-box input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+}
+
+.pin-error {
+  color: var(--danger) !important;
+  font-size: 11px !important;
+  margin-top: 10px !important;
+  font-weight: 600;
+}

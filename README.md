@@ -87,6 +87,41 @@ python3 server.py --port 8080
 
 ---
 
+## Remote Access (When Away from PC)
+
+When you are away from your PC (e.g., outside on 4G/5G mobile data or connected to different Wi-Fi networks), you can connect remotely using either of two built-in methods:
+
+### Method A: Cloudflare Public Tunnel (1-Click, Zero Config)
+Click **"☁️ Public Remote Tunnel"** -> **"⚡ Start Public Tunnel"** in the desktop app.
+- Generates an encrypted public HTTPS URL (`https://*.trycloudflare.com`).
+- Works worldwide on cellular data or any external Wi-Fi.
+- Accessible from any browser with zero client app installation required on your phone.
+- Protected by your 4-digit Security PIN.
+
+### Method B: Tailscale Mesh VPN (Private Peer-to-Peer)
+Click **"🌐 Tailscale VPN"** in the desktop app.
+1. Connect your PC to Tailscale:
+   ```bash
+   sudo tailscale up
+   ```
+2. Install the free **Tailscale** app on your Android phone and sign in with the same account.
+3. Open `http://<tailscale-ip>:8080` in your phone browser.
+4. Enjoy a direct, end-to-end encrypted WireGuard connection anywhere in the world.
+
+---
+
+## Preventing Laptop Sleep While Away
+
+To keep your Linux PC awake and connected when the lid is closed while away:
+
+- **KDE Plasma**: System Settings -> Power Management -> When laptop lid is closed -> Select **"Turn off screen"** (instead of Sleep).
+- **CLI / One-Liner**:
+  ```bash
+  systemd-inhibit --what=idle:sleep:handle-lid-switch --why="Remote Continuity" bash
+  ```
+
+---
+
 ## Background Autostart (Optional)
 
 To have the Continuity server automatically start whenever you log into Linux:

@@ -85,6 +85,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Token & PIN Authentication
+  const urlParams = new URLSearchParams(window.location.search);
+  let authToken = urlParams.get('token') || localStorage.getItem('continuity_token') || '';
+  if (urlParams.get('token')) {
+    localStorage.setItem('continuity_token', urlParams.get('token'));
+  }
+
+  const pinModal = document.getElementById('pinModal');
+  const pinInput = document.getElementById('pinInput');
+  const btnUnlock = document.getElementById('btnUnlock');
+  const pinError = document.getElementById('pinError');
+
+  function showPinModal() {
+    if (pinModal) {
+      pinModal.style.display = 'flex';
+      setTimeout(() => pinInput && pinInput.focus(), 200);
+    }
+  }
+
+  function hidePinModal() {
+    if (pinModal) pinModal.style.display = 'none';
+  }
+
+  if (btnUnlock) {
+    btnUnlock.addEventListener('click', async () => {
+      const val = pinInput ? pinInput.value.trim() : '';
+      if (!val) return;
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: val })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          authToken = data.token;
+          localStorage.setItem('continuity_token', authToken);
+          hidePinModal();
+          connectTerminal();
+          connectClipboard();
+          showToast('✓ Device Unlocked');
+        } else {
+          if (pinError) pinError.style.display = 'block';
+          if (pinInput) pinInput.value = '';
+        }
+      } catch (e) {
+        if (pinError) pinError.style.display = 'block';
+      }
+    });
+  }
+
+  if (pinInput) {
+    pinInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnUnlock && btnUnlock.click();
+    });
+  }
+
   const fitAddon = new FitAddon.FitAddon();
   window.fitAddon = fitAddon;
   term.loadAddon(fitAddon);
@@ -93,10 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let termWs = null;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const termUrl = `${protocol}//${window.location.host}/ws/terminal`;
 
   function connectTerminal() {
+    if (termWs && (termWs.readyState === WebSocket.OPEN || termWs.readyState === WebSocket.CONNECTING)) return;
     term.write('\r\n\x1b[36m[*] Connecting to Linux Terminal...\x1b[0m\r\n');
+    const termUrl = `${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(authToken)}`;
     termWs = new WebSocket(termUrl);
     termWs.binaryType = 'arraybuffer';
 
@@ -175,12 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  connectTerminal();
-
   // ----------------------------------------------------
   // 2. Clipboard Sync
   // ----------------------------------------------------
-  const clipUrl = `${protocol}//${window.location.host}/ws/clipboard`;
   const pcClipBox = document.getElementById('pcClipboardText');
   const phoneClipInput = document.getElementById('phoneClipboardInput');
   const btnSendToPc = document.getElementById('btnSendToPc');
@@ -189,6 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPcText = '';
 
   function connectClipboard() {
+    if (clipWs && (clipWs.readyState === WebSocket.OPEN || clipWs.readyState === WebSocket.CONNECTING)) return;
+    const clipUrl = `${protocol}//${window.location.host}/ws/clipboard?token=${encodeURIComponent(authToken)}`;
     clipWs = new WebSocket(clipUrl);
 
     clipWs.onmessage = (evt) => {
@@ -374,14 +431,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Load Host Info
+  // Load Host Info & Initialize Connection
   fetch('/api/info')
     .then(r => r.json())
     .then(data => {
       if (data.hostname) document.getElementById('sysHost').textContent = data.hostname;
       if (data.ip) document.getElementById('sysIp').textContent = data.ip;
+      if (data.require_pin && !authToken) {
+        showPinModal();
+      } else {
+        connectTerminal();
+        connectClipboard();
+      }
     })
-    .catch(() => {});
+    .catch(() => {
+      connectTerminal();
+      connectClipboard();
+    });
 
   function escapeHtml(str) {
     return str.replace(/[&<>'"]/g, 
