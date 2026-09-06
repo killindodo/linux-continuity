@@ -1,6 +1,6 @@
 # Linux Continuity
 
-An Apple-style continuity ecosystem between Linux PC and Android. Seamlessly transfer files, synchronize clipboards, and watch or control your Linux terminal right from your Android phone.
+An Apple-style continuity ecosystem between Linux PC and Android. Seamlessly transfer files, synchronize clipboards, watch and control running terminals, and mirror your PC desktop screen right from your Android phone.
 
 **Developer**: [killindodo](https://github.com/killindodo)  
 **Repository**: [https://github.com/killindodo/linux-continuity](https://github.com/killindodo/linux-continuity)
@@ -12,20 +12,29 @@ An Apple-style continuity ecosystem between Linux PC and Android. Seamlessly tra
 ## Why I Built This
 
 I wanted the seamless continuity experience that Apple has between macOS and iPhone, but for Linux and Android:
-1. **Interactive Terminal on Mobile**: Being able to watch running builds, tail server logs, or run bash/zsh commands from my phone when I step away from my desk.
-2. **Universal Shared Clipboard**: Instantly sync clipboard between PC and phone without manually emailing or messaging links to myself.
-3. **AirDrop-Style File Transfers**: Fast, wireless file dropping straight into `~/Downloads` without cables, cloud drives, or login portals.
+1. **Watch & Control Running Terminals**: See and control active terminal sessions, long-running scripts, server logs, or builds running on my PC directly from my phone.
+2. **Live Desktop Screen Mirror**: Visually see any open window on the PC screen and control it with touch clicks and keystrokes while away.
+3. **Universal Shared Clipboard**: Instantly sync clipboard between PC and phone without manually emailing or messaging links to myself.
+4. **AirDrop-Style File Transfers**: Fast, wireless file dropping straight into `~/Downloads` without cables, cloud drives, or login portals.
 
-This project delivers all of this over your local Wi-Fi network with **zero extra Android app installations required**—simply open the web hub in your mobile browser or scan the QR code on your desktop.
+This project delivers all of this with **zero Android app installations required**—simply open the web hub in your mobile browser or scan the desktop QR code.
 
 ---
 
 ## Features
 
-- 📟 **Real-Time Interactive Terminal**:
-  - Full PTY terminal streaming powered by `xterm.js` and WebSockets.
+- 📟 **Shared Interactive Terminals (Watch & Control)**:
+  - Built-in `tmux` shared session multiplexing.
+  - Whatever you run in a terminal on your PC is mirrored live to your phone simultaneously.
+  - Multi-session switcher: switch between sessions (`main`, `work`, or create new named sessions).
+  - **Running Desktop Terminals (PTS) Inspector**: view all active terminal processes running across `/dev/pts/*` on your machine (`zsh`, `python`, `gcc`, `htop`, etc.).
+  - **1-Click Launch on PC**: open a terminal window on your PC screen attached to the shared session with a single tap from either desktop or phone.
   - Mobile touch helper keyboard with `ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, and arrow keys.
-  - Watch background tasks or run interactive shell commands directly from Android.
+- 🖥️ **Live Desktop Screen Mirror & Remote Control**:
+  - Live low-latency desktop screen capture streamed directly to your mobile browser.
+  - Selectable refresh rates: Live (1s), 2s, 4s, or Manual refresh.
+  - **Interactive Touch-to-Click**: Tap anywhere on the phone screen to simulate native mouse clicks on the PC desktop (supports Left Click, Right Click, and Double Click).
+  - **Remote Keystroke & Typing Controller**: Quick keys (`Enter`, `Bksp`, `Tab`, `Esc`, `Ctrl+C`, `Super / Windows Key`, `Alt+Tab`, `Space`) plus a direct text input field to type into any active desktop window.
 - 📋 **Universal Shared Clipboard**:
   - Live bidirectional clipboard synchronization.
   - Text copied on PC appears instantly on phone with 1-tap "Copy to Phone".
@@ -34,10 +43,12 @@ This project delivers all of this over your local Wi-Fi network with **zero extr
   - Send photos, documents, and videos from your phone directly to `~/Downloads` on Linux.
   - Triggers native desktop notifications on arrival.
   - Browse and download recent PC files from Linux to Android with one click.
-- ⚡ **Desktop & Mobile Controls**:
-  - Quick actions from mobile: Lock screen, desktop audio mute, ping PC.
+- ⚡ **Desktop Companion & Mobile Controls**:
+  - Quick actions from mobile: Lock screen, desktop audio mute, ping PC, open terminal on PC.
   - Desktop companion app with auto-generated QR code for instant camera pairing.
   - System tray icon with quick links and downloads folder shortcut.
+- 🔒 **Security PIN Protection**:
+  - 4-digit PIN system protects your PC from unauthorized access on local Wi-Fi or public tunnels.
 
 ---
 
@@ -45,12 +56,12 @@ This project delivers all of this over your local Wi-Fi network with **zero extr
 
 ### Prerequisites
 
-Ensure Python 3 and standard Linux tools are installed:
+Ensure Python 3, PyQt6, Tornado, tmux, and X11 utility tools are installed:
 
 ```bash
 # Debian / Ubuntu / Kali
 sudo apt update
-sudo apt install python3 python3-pyqt6 python3-tornado xclip
+sudo apt install python3 python3-pyqt6 python3-tornado tmux xdotool imagemagick xclip
 ```
 
 ### Installation
@@ -81,9 +92,21 @@ python3 server.py --port 8080
 
 ### 2. Connect from Android
 
-1. Ensure your Android phone is connected to the same Wi-Fi network as your PC.
+1. Ensure your Android phone is connected to the same Wi-Fi network as your PC (or use Remote Tunnel / Tailscale).
 2. Point your phone camera at the QR code displayed on the desktop window (or open the displayed URL in your mobile browser, e.g., `http://192.168.x.x:8080`).
-3. You now have full terminal access, live clipboard sync, and file dropping!
+3. You now have full terminal access, screen mirroring, live clipboard sync, and file dropping!
+
+---
+
+## Watching & Controlling Running Terminals
+
+To watch a command or program running on your PC from your Android phone:
+1. In the desktop companion app, click **"⚡ Launch Shared Terminal"** (or in an existing terminal run `tmux new-session -A -s main`).
+2. Run any command you want on your PC (e.g. `htop`, `python script.py`, build scripts, or long downloads).
+3. On your phone, open the **Terminal** tab. You will see the exact same session live!
+4. Any keystroke on your phone is reflected on your PC screen, and any output produced on your PC is mirrored on your phone.
+5. If you want to see what is running in other non-shared terminals on your PC, tap **"📋 Running (PTS)"** to inspect active processes across all terminals.
+6. Alternatively, open the **🖥️ Screen Mirror** tab to see your entire desktop screen visually!
 
 ---
 

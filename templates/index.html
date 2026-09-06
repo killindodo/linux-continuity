@@ -25,6 +25,7 @@
     <!-- Navigation Tabs -->
     <nav class="tabs-nav">
       <button class="tab-btn active" data-tab="terminal">📟 Terminal</button>
+      <button class="tab-btn" data-tab="screen">🖥️ Screen Mirror</button>
       <button class="tab-btn" data-tab="clipboard">📋 Clipboard</button>
       <button class="tab-btn" data-tab="files">📁 AirDrop Files</button>
       <button class="tab-btn" data-tab="system">⚡ Controls</button>
@@ -35,6 +36,21 @@
       <!-- 1. Terminal Panel -->
       <section id="tab-terminal" class="tab-pane active">
         <div class="terminal-container">
+          <!-- Session Switcher & Control Header -->
+          <div class="term-session-bar">
+            <div class="session-selector">
+              <label for="termSessionSelect">Session:</label>
+              <select id="termSessionSelect">
+                <option value="main">main</option>
+              </select>
+              <button class="kbtn action" id="btnNewSession" title="Create new session">+ New</button>
+            </div>
+            <div class="session-actions">
+              <button class="kbtn action" id="btnLaunchPcTerm" title="Open terminal on PC attached to this session">💻 Launch on PC</button>
+              <button class="kbtn action" id="btnToggleProcs" title="Inspect running desktop terminals">📋 Running (PTS)</button>
+            </div>
+          </div>
+
           <!-- Mobile Keyboard Helper Toolbar -->
           <div class="key-toolbar">
             <button class="kbtn" data-key="\x1b">ESC</button>
@@ -48,11 +64,77 @@
             <button class="kbtn action" id="btnReconnectTerm">Reconnect</button>
             <button class="kbtn action" id="btnClearTerm">Clear</button>
           </div>
+
+          <!-- Collapsible Running Processes Drawer -->
+          <div id="procsDrawer" class="procs-drawer" style="display: none;">
+            <div class="drawer-header">
+              <h4>🖥️ Active Desktop Terminals & Processes</h4>
+              <div class="drawer-btns">
+                <button id="btnRefreshProcs" class="btn-xs">🔄 Refresh</button>
+                <button id="btnCloseProcs" class="btn-xs">✕ Close</button>
+              </div>
+            </div>
+            <div class="procs-content" id="procsContent">
+              <div class="procs-loading">Loading running desktop processes...</div>
+            </div>
+          </div>
+
           <div id="terminal"></div>
         </div>
       </section>
 
-      <!-- 2. Clipboard Panel -->
+      <!-- 2. Live Desktop Screen Mirror Panel -->
+      <section id="tab-screen" class="tab-pane">
+        <div class="screen-wrapper">
+          <!-- Screen Control Toolbar -->
+          <div class="screen-toolbar">
+            <div class="st-left">
+              <label for="screenRefreshRate">Rate:</label>
+              <select id="screenRefreshRate">
+                <option value="1000">Live 1s</option>
+                <option value="2000" selected>2s</option>
+                <option value="4000">4s</option>
+                <option value="0">Manual</option>
+              </select>
+              <button id="btnScreenManualRefresh" class="kbtn action">🔄 Refresh</button>
+            </div>
+            <div class="st-right">
+              <span class="click-mode-label">Tap:</span>
+              <button class="click-mode-btn active" data-btn="1" id="modeLeft">Left</button>
+              <button class="click-mode-btn" data-btn="3" id="modeRight">Right</button>
+              <button class="click-mode-btn" data-btn="double" id="modeDouble">Double</button>
+            </div>
+          </div>
+
+          <!-- Interactive Screen Display -->
+          <div class="screen-viewport" id="screenViewport">
+            <div class="screen-canvas-box" id="screenCanvasBox">
+              <img id="screenImg" src="/static/icons/icon.png" alt="Desktop Screen" draggable="false">
+              <div id="screenRipple" class="screen-ripple"></div>
+            </div>
+          </div>
+
+          <!-- Virtual Keyboard & Typing Controller -->
+          <div class="screen-kbd-bar">
+            <div class="s-keys-row">
+              <button class="kbtn s-key" data-skey="Return">Enter</button>
+              <button class="kbtn s-key" data-skey="BackSpace">Bksp</button>
+              <button class="kbtn s-key" data-skey="Tab">Tab</button>
+              <button class="kbtn s-key" data-skey="Escape">Esc</button>
+              <button class="kbtn s-key" data-skey="ctrl+c">Ctrl+C</button>
+              <button class="kbtn s-key" data-skey="super">Super</button>
+              <button class="kbtn s-key" data-skey="alt+Tab">Alt+Tab</button>
+              <button class="kbtn s-key" data-skey="space">Space</button>
+            </div>
+            <div class="screen-type-box">
+              <input type="text" id="screenTextInput" placeholder="Type text to send to focused PC window...">
+              <button id="btnScreenSendText" class="btn-primary-sm">Send</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Clipboard Panel -->
       <section id="tab-clipboard" class="tab-pane">
         <div class="card">
           <div class="card-header">
@@ -73,7 +155,7 @@
         </div>
       </section>
 
-      <!-- 3. AirDrop Files Panel -->
+      <!-- 4. AirDrop Files Panel -->
       <section id="tab-files" class="tab-pane">
         <div class="card">
           <div class="card-header">
@@ -103,13 +185,17 @@
         </div>
       </section>
 
-      <!-- 4. System Controls Panel -->
+      <!-- 5. System Controls Panel -->
       <section id="tab-system" class="tab-pane">
         <div class="card">
           <div class="card-header">
             <h3>Quick Actions</h3>
           </div>
           <div class="action-grid">
+            <button class="action-card" data-action="launch_shared_terminal">
+              <span class="act-icon">💻</span>
+              <span class="act-title">Open Terminal on PC</span>
+            </button>
             <button class="action-card" data-action="lock_screen">
               <span class="act-icon">🔒</span>
               <span class="act-title">Lock Screen</span>

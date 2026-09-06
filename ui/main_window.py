@@ -17,6 +17,7 @@ from PyQt6.QtGui import QIcon, QFont, QDesktopServices
 from ui.qr_widget import QRWidget
 from ui.tray import ContinuityTrayIcon
 from core.tunnel import CloudflareTunnel, get_tailscale_ip
+from core.terminal_pty import launch_desktop_terminal
 from server import auth_mgr
 
 
@@ -253,7 +254,8 @@ class ContinuityWindow(QMainWindow):
         r_box.addWidget(lbl_feat_title)
 
         features = [
-            ("📟 Remote Interactive Terminal", "Watch & control shell with mobile touch keyboard"),
+            ("📟 Shared Interactive Terminal", "Mirror & control PC terminals in real-time via tmux"),
+            ("🖥️ Live Desktop Screen Mirror", "View any open window & tap to control PC desktop"),
             ("📋 Universal Shared Clipboard", "Bi-directional instant sync with X11 clipboard"),
             ("📁 AirDrop-Style File Transfers", "Send photos & docs straight to ~/Downloads"),
             ("🔒 Remote Security", f"Protected by 4-digit PIN ({auth_mgr.pin})")
@@ -274,12 +276,17 @@ class ContinuityWindow(QMainWindow):
 
         # Action Buttons
         btn_row = QHBoxLayout()
-        btn_downloads = QPushButton("📂 Open ~/Downloads")
+        btn_shared_term = QPushButton("⚡ Launch Shared Terminal")
+        btn_shared_term.setProperty("class", "primary-btn")
+        btn_shared_term.clicked.connect(self._launch_shared_terminal)
+        btn_row.addWidget(btn_shared_term)
+
+        btn_downloads = QPushButton("📂 Downloads")
         btn_downloads.setProperty("class", "secondary-btn")
         btn_downloads.clicked.connect(self._open_downloads)
         btn_row.addWidget(btn_downloads)
 
-        btn_browser = QPushButton("🌐 Open in Browser")
+        btn_browser = QPushButton("🌐 Web")
         btn_browser.setProperty("class", "secondary-btn")
         btn_browser.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(self.current_url)))
         btn_row.addWidget(btn_browser)
@@ -403,6 +410,22 @@ class ContinuityWindow(QMainWindow):
 
     def _open_downloads(self):
         subprocess.Popen(["xdg-open", os.path.expanduser("~/Downloads")])
+
+    def _launch_shared_terminal(self):
+        ok = launch_desktop_terminal("main")
+        if ok:
+            QMessageBox.information(
+                self,
+                "Shared Terminal Active",
+                "Launched a terminal window on your PC connected to tmux session 'main'.\n\n"
+                "Anything you run in this terminal is mirrored live to your Android device!"
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Terminal Error",
+                "Could not detect a desktop terminal emulator (e.g. konsole, xterm)."
+            )
 
     def closeEvent(self, event):
         if self.tunnel:
