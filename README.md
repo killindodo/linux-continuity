@@ -136,11 +136,11 @@ Click **"🌐 Tailscale VPN"** in the desktop app.
 If you prefer using a native terminal app on Android:
 1. Connect via Tailscale mesh:
    ```bash
-   ssh killindodo@100.66.109.94
+   ssh killindodo@100.66.109.xx
    ```
 2. Or attach directly into the live shared tmux session running on your PC:
    ```bash
-   ssh killindodo@100.66.109.94 -t tmux new-session -A -s main
+   ssh killindodo@100.66.109.xx -t tmux new-session -A -s main
    ```
    Whatever you do in this SSH terminal is simultaneously visible on your laptop screen and the Continuity web app!
 
