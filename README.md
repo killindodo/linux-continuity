@@ -1,4 +1,4 @@
-# Linux Continuity
+# Linux Continuity(CURRENTLY IN DEVELOPMENT AND HAVE MANY BUGS ITS LITERALLY BROKEN FOR NOW)
 
 An Apple-style continuity ecosystem between Linux PC and Android. Seamlessly transfer files, synchronize clipboards, watch and control running terminals, and mirror your PC desktop screen right from your Android phone.
 
