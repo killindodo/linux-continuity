@@ -10,3 +10,14 @@ venv/
 .vscode/
 .idea/
 *~
+*.log
+*.tmp
+
+# Android build artifacts & local properties
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/build/
+android/*/build/
+android/.idea/
+android/*.iml

@@ -27,10 +27,16 @@ __version__ = "1.0.0"
 
 
 def start_tornado_server(port: int = 8080):
-    asyncio.set_event_loop(asyncio.new_event_loop())
-    app = make_app()
-    app.listen(port, address="0.0.0.0")
-    tornado.ioloop.IOLoop.current().start()
+    try:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        app = make_app()
+        app.listen(port, address="0.0.0.0")
+        tornado.ioloop.IOLoop.current().start()
+    except OSError as e:
+        if e.errno == 98:
+            print(f"[*] Port {port} already in use (running standalone server). GUI connecting to active backend.")
+        else:
+            raise
 
 
 def main():

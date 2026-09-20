@@ -34,6 +34,7 @@
     <!-- Navigation Tabs: Dedicated Continuity Apps + System Controls -->
     <nav class="tabs-nav">
       <button class="tab-btn active" data-tab="terminal">📟 Terminal</button>
+      <button class="tab-btn" data-tab="trackpad">🖱️ Trackpad</button>
       <button class="tab-btn" data-tab="files">📁 Files</button>
       <button class="tab-btn" data-tab="clipboard">📋 Clipboard</button>
       <button class="tab-btn" data-tab="av">📷 Camera & Mic</button>
@@ -162,7 +163,67 @@
         </div>
       </section>
 
-      <!-- 2. File Hub & Browser Panel (Browse PC, Select & Save Destination, AirDrop Upload) -->
+      <!-- 2. Trackpad & Remote Mouse Panel -->
+      <section id="tab-trackpad" class="tab-pane">
+        <div class="card" style="margin-bottom: 8px;">
+          <div class="card-header">
+            <h3>🖱️ Remote Trackpad & Mouse</h3>
+            <span id="trackpadStatus" class="status-pill status-active">Ready</span>
+          </div>
+
+          <!-- Sensitivity Slider Bar -->
+          <div class="trackpad-sens-bar">
+            <div class="sens-header">
+              <span>⚡ Pointer Speed & Sensitivity</span>
+              <span id="trackpadSensBadge" class="sens-val-badge">1.2x</span>
+            </div>
+            <input type="range" id="trackpadSensSlider" min="0.3" max="3.0" step="0.1" value="1.2" style="width: 100%; accent-color: var(--accent-cyan); cursor: pointer;">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+              <span>0.3x Precision</span>
+              <span>1.2x Normal</span>
+              <span>3.0x Fast</span>
+            </div>
+          </div>
+
+          <!-- Touch Surface -->
+          <div id="trackpadSurface" class="trackpad-surface">
+            <div id="trackpadPointer" class="trackpad-pointer"></div>
+            <div class="trackpad-hint">
+              <span>🖱️ Touch & Slide to Move Mouse Cursor</span>
+              <small>Tap: Left Click • 2-Finger Tap: Right Click • Double-Tap: Open</small>
+            </div>
+          </div>
+
+          <!-- Physical Mouse Buttons -->
+          <div class="trackpad-buttons">
+            <button id="btnTpLeft" class="btn-tp">🖱️ Left Click</button>
+            <button id="btnTpMiddle" class="btn-tp">📜 Middle</button>
+            <button id="btnTpRight" class="btn-tp">🖱️ Right Click</button>
+            <button id="btnTpDrag" class="btn-tp" style="border-color: #3b4b6b;">🔒 Drag & Hold</button>
+          </div>
+
+          <!-- Scroll & Quick Keys Bar -->
+          <div class="key-toolbar" style="padding: 4px 10px 10px 10px;">
+            <button id="btnTpScrollUp" class="kbtn" style="flex: 1.2;">▲ Scroll Up</button>
+            <button id="btnTpScrollDown" class="kbtn" style="flex: 1.2;">▼ Scroll Down</button>
+            <button class="kbtn tp-key" data-tpkey="Return">Enter</button>
+            <button class="kbtn tp-key" data-tpkey="Escape">Esc</button>
+            <button class="kbtn tp-key" data-tpkey="super">Super / Win</button>
+            <button class="kbtn tp-key" data-tpkey="alt+Tab">Alt+Tab</button>
+          </div>
+
+          <!-- Collapsible Desktop Viewfinder Snapshot -->
+          <div style="padding: 0 10px 10px 10px;">
+            <button id="btnToggleTrackpadViewfinder" class="btn-sm" style="width: 100%; margin-bottom: 8px;">📸 Show / Hide PC Desktop Viewfinder</button>
+            <div id="trackpadViewfinderBox" style="display: none; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--card-border);">
+              <img id="trackpadScreenImg" src="/static/icons/icon.png" alt="Desktop Screen" style="width: 100%; display: block; border-radius: 8px;">
+              <button id="btnRefreshTrackpadScreen" class="kbtn action" style="position: absolute; top: 8px; right: 8px; z-index: 5;">🔄 Snapshot</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. File Hub & Browser Panel (Browse PC, Select & Save Destination, AirDrop Upload) -->
       <section id="tab-files" class="tab-pane">
         <!-- Target Save Location & Bookmarks Card -->
         <div class="card">
@@ -174,7 +235,7 @@
           <div class="target-folder-box">
             <div class="target-path-row">
               <span class="folder-pin-icon">📍</span>
-              <span id="currentTargetPathDisplay" class="target-path-text">/home/killindodo/Downloads</span>
+              <span id="currentTargetPathDisplay" class="target-path-text">~/Downloads</span>
             </div>
             <div class="target-actions-row">
               <button id="btnSetAsDefaultDir" class="kbtn action highlight" title="Make this the permanent default save folder">
@@ -347,7 +408,7 @@
               <div class="remote-row">
                 <span class="remote-label">SSH Remote Terminal:</span>
               </div>
-              <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
+              <div class="code-box" id="remoteSshCmd">ssh user@host</div>
               <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
             </div>
           </div>
@@ -593,6 +654,6 @@
 
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
-  <script src="/static/js/app.js?v=2.4"></script>
+  <script src="/static/js/app.js?v=2.5"></script>
 </body>
 </html>

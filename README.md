@@ -1,198 +1,283 @@
 # Linux Continuity
 
-An Apple-style continuity ecosystem between Linux PC and Android. Seamlessly transfer files, synchronize clipboards, watch and control running terminals, and mirror your PC desktop screen right from your Android phone.
+An Apple-style continuity ecosystem bridging Linux workstations and Android devices. Seamlessly synchronize clipboards, watch and interact with live terminal sessions, transfer files with AirDrop speed, control Android hardware remotely, inspect live system vitals, and manage device security with zero-trust pairing.
 
-**Developer**: [killindodo](https://github.com/killindodo)  
-**Repository**: [https://github.com/killindodo/linux-continuity](https://github.com/killindodo/linux-continuity)
-
-![Linux Continuity](static/icons/icon.png)
-
----
-
-## Why I Built This
-
-I wanted the seamless continuity experience that Apple has between macOS and iPhone, but for Linux and Android:
-1. **Watch & Control Running Terminals**: See and control active terminal sessions, long-running scripts, server logs, or builds running on my PC directly from my phone.
-2. **Live Desktop Screen Mirror**: Visually see any open window on the PC screen and control it with touch clicks and keystrokes while away.
-3. **Universal Shared Clipboard**: Instantly sync clipboard between PC and phone without manually emailing or messaging links to myself.
-4. **AirDrop-Style File Transfers**: Fast, wireless file dropping straight into `~/Downloads` without cables, cloud drives, or login portals.
-
-This project delivers all of this with **zero Android app installations required**—simply open the web hub in your mobile browser or scan the desktop QR code.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
+[![GUI: PyQt6](https://img.shields.io/badge/GUI-PyQt6-blueviolet.svg)](https://riverbankcomputing.com/software/pyqt/)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux%20X11-orange.svg)](#prerequisites)
+[![Android: Native Kotlin](https://img.shields.io/badge/Android-Native%20Kotlin-3DDC84.svg)](android/)
 
 ---
 
-## Features
+## Table of Contents
 
-- 📟 **Shared Interactive Terminals (Watch & Control)**:
-  - Built-in `tmux` shared session multiplexing.
-  - Whatever you run in a terminal on your PC is mirrored live to your phone simultaneously.
-  - Multi-session switcher: switch between sessions (`main`, `work`, or create new named sessions).
-  - **Running Desktop Terminals (PTS) Inspector**: view all active terminal processes running across `/dev/pts/*` on your machine (`zsh`, `python`, `gcc`, `htop`, etc.).
-  - **1-Click Launch on PC**: open a terminal window on your PC screen attached to the shared session with a single tap from either desktop or phone.
-  - Mobile touch helper keyboard with `ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, and arrow keys.
-- 🖱️ **Haptic Virtual Trackpad & Live Screen Mirror**:
-  - Switch between Live Desktop Screen Mirror and high-response **Virtual Trackpad**.
-  - 1-finger relative cursor movement with smooth acceleration.
-  - 1-finger tap for Left Click, 2-finger tap for Right Click, 2-finger drag for vertical scrolling.
-  - Dedicated Left, Middle, and Right Click buttons.
-  - Remote Keystrokes (`Enter`, `Bksp`, `Tab`, `Esc`, `Ctrl+C`, `Super / Windows Key`, `Alt+Tab`, `Space`) + direct text input to PC.
-- 🎵 **Media Player & Master Audio Control**:
-  - Live **MPRIS** integration: automatically detects active playback from Spotify, VLC, YouTube, Firefox, Chrome, and MPV.
-  - Displays real-time track title, artist, album, status badge, and album artwork.
-  - Remote playback controls: Play/Pause, Next Track, Previous Track, Stop.
-  - Master system volume slider (0% to 150%) with 1-tap presets and instant Mute toggle.
-- 📊 **Real-time System & Hardware Vitals**:
-  - Live CPU Load %, core count, CPU clock frequency, and CPU package temperatures (°C).
-  - Memory (RAM) and Swap utilization meters.
-  - Root storage (`/`) space and free GB display.
-  - Thermal sensors: CPU & GPU temperatures.
-  - Battery percentage and AC power charging indicator.
-  - System uptime counter and 1m/5m/15m load averages.
-- 🚀 **1-Click App Launcher & Power Deck**:
-  - Launch PC applications straight from mobile: Terminal, File Manager (`~`), Web Browser, VS Code, and Settings.
-  - System Power Management: Lock Screen, Turn Off Display (`xset dpms`), Sleep/Suspend, Reboot, and Power Off (with safety confirmations).
-  - Push Desktop Notification: send custom push alerts from phone to Linux desktop via `notify-send`.
-- 📋 **Universal Shared Clipboard**:
-  - Live bidirectional clipboard synchronization.
-  - Text copied on PC appears instantly on phone with 1-tap "Copy to Phone".
-  - Text typed or pasted on phone is sent directly to the Linux X11 clipboard via `xclip`.
-- 📁 **AirDrop File Drop**:
-  - Send photos, documents, and videos from your phone directly to `~/Downloads` on Linux.
-  - Triggers native desktop notifications on arrival.
-  - Browse and download recent PC files from Linux to Android with one click.
-- 📱 **Progressive Web App (PWA) & Offline Caching**:
-  - Web App Manifest allows installing directly to Android home screen like a native app.
-  - Built-in Service Worker for offline asset caching and instant launches.
-- 🔒 **Security PIN Protection & Remote Tunnels**:
-  - 4-digit PIN system protects your PC from unauthorized access on local Wi-Fi or public tunnels.
-  - Integrated Cloudflare HTTPS Tunnels and Tailscale Mesh VPN support for away-from-desk access.
+- [Overview & Architecture](#overview--architecture)
+- [Visual Walkthrough](#visual-walkthrough)
+- [Key Features](#key-features)
+  - [Zero-Trust Device Gatekeeper & Security](#zero-trust-device-gatekeeper--security)
+  - [Android Remote Control & Hardware Telemetry](#android-remote-control--hardware-telemetry)
+  - [Shared Interactive Terminals (tmux)](#shared-interactive-terminals-tmux)
+  - [AirDrop-Style File Transfers & PC Directory Browser](#airdrop-style-file-transfers--pc-directory-browser)
+  - [Universal Shared Clipboard](#universal-shared-clipboard)
+  - [Remote Hardware Vitals & MPRIS Media Control](#remote-hardware-vitals--mpris-media-control)
+  - [Webcam Viewfinder & Audio Streaming](#webcam-viewfinder--audio-streaming)
+- [Prerequisites](#prerequisites)
+- [Installation Guide](#installation-guide)
+- [Connecting Your Phone](#connecting-your-phone)
+  - [Option A: Native Android Companion App (Recommended)](#option-a-native-android-companion-app-recommended)
+  - [Option B: Progressive Web App / Mobile Browser](#option-b-progressive-web-app--mobile-browser)
+  - [Remote Access via Tailscale Mesh VPN](#remote-access-via-tailscale-mesh-vpn)
+- [Architecture & Internal Data Flow](#architecture--internal-data-flow)
+- [Configuration & Autostart](#configuration--autostart)
+- [Troubleshooting & FAQ](#troubleshooting--faq)
+- [Author & License](#author--license)
 
 ---
 
-## Getting Started
+## Overview & Architecture
 
-### Prerequisites
+Linux Continuity was designed to give Linux desktop users the frictionless device continuity enjoyed on proprietary platforms, without reliance on cloud servers or proprietary vendor ecosystems. 
 
-Ensure Python 3, PyQt6, Tornado, tmux, and X11 utility tools are installed:
+The system operates across two core tiers:
+1. **Linux Core Engine & Desktop Hub (`app.py` / `server.py`):** An asynchronous event-driven Tornado daemon combined with a desktop PyQt6 control center. It manages local PTY multiplexing, clipboard polling via `xclip`, live MPRIS media bus inspection, and device session authentication.
+2. **Android Client Layer:** A native Android application (`android/`) powered by Kotlin and Android Jetpack, with an embedded Web App client capable of running standalone in any modern mobile browser or progressive web app (PWA) container.
 
+```mermaid
+flowchart LR
+    subgraph Linux Workstation
+        PyQt["PyQt6 Companion App\n(Desktop UI & Tray)"]
+        Server["Tornado Async Core\n(Port 8080)"]
+        Tmux["tmux Multiplexer\n(Shared PTY)"]
+        Clipboard["X11 Clipboard Daemon\n(xclip / xsel)"]
+        MPRIS["MPRIS D-Bus Bus\n(Spotify, VLC, Chrome)"]
+        Auth["Zero-Trust Gatekeeper\n(Session & PIN Engine)"]
+    end
+
+    subgraph Network Layer
+        Net{"Local Wi-Fi OR\nTailscale Mesh VPN"}
+    end
+
+    subgraph Android Device
+        AndroidApp["Native Android App\n(Kotlin / BatteryManager)"]
+        WebPWA["Continuity Web Client\n(Xterm.js / Audio / Touch)"]
+    end
+
+    PyQt <--> Server
+    Server <--> Tmux
+    Server <--> Clipboard
+    Server <--> MPRIS
+    Server <--> Auth
+    Server <==> Net
+    Net <==> AndroidApp
+    Net <==> WebPWA
+```
+
+---
+
+## Visual Walkthrough
+
+### 1. Connect Hub
+Displays active connection URLs, dynamic QR pairing code, Tailscale mesh VPN toggles, and terminal mirroring shortcuts:
+
+![Connect Hub](docs/screenshots/connect_hub.png)
+
+### 2. Android Remote Control & Live Battery Telemetry
+Control Android alerts, trigger ringers ("Find My Phone"), adjust mobile volume, open URLs, and view live battery and charging metrics reported natively by the phone:
+
+![Android Remote Control](docs/screenshots/phone_control.png)
+
+### 3. Zero-Trust Device Gatekeeper & Session Manager
+Review real-time connected clients, approve or reject incoming mobile handshake requests, kick sessions, and manage IP blacklists:
+
+![Devices & Security](docs/screenshots/device_security.png)
+
+### 4. AirDrop-Style File Transfers & Custom Save Locations
+Drop files seamlessly from mobile directly into `~/Downloads` or any custom configured PC directory with write notifications:
+
+![File Transfers](docs/screenshots/file_transfers.png)
+
+### 5. Remote Webcam & Microphone Hub
+Inspect PC camera snapshots and monitor workstation microphone audio remotely:
+
+![Camera & Mic Hub](docs/screenshots/camera_mic.png)
+
+---
+
+## Key Features
+
+### Zero-Trust Device Gatekeeper & Security
+- **4-Digit Security PIN:** Protects the workstation against unauthorized network scans on local networks.
+- **On-Screen Desktop Approval:** When a new device enters the PIN, an interactive PyQt6 dialog immediately alerts the Linux user to explicitly approve or deny access.
+- **Session Tokens:** Cryptographically random UUID session tokens prevent token replay.
+- **Real-Time Client Inspection:** View all active IP addresses, device models, idle timers, and kick or blacklist rogue clients with one click.
+
+### Android Remote Control & Hardware Telemetry
+- **Find My Phone Alarm:** Remotely trigger an alarm ringtone on the Android device with one tap from the PC desktop.
+- **Haptic Vibration:** Send single or pulsed vibration signals to the phone.
+- **On-Screen Toast Alerts:** Dispatch instant messages to appear on the Android display.
+- **Media & Volume Control:** Remotely raise/lower Android media volume and send media playback key events (`play/pause`, `next`, `prev`).
+- **Live Battery Telemetry:** Reads actual battery capacity and AC charging status via native Android `BatteryManager` and updates the PC control bar in real time without mock fallbacks.
+
+### Shared Interactive Terminals (tmux)
+- **Watch & Control:** Multiplexes the active PC shell using `tmux`. Everything executing on your computer (builds, logs, scripts) is mirrored live to your phone.
+- **Touch-Friendly Controls:** Mobile terminal includes dedicated helper keys (`ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, and directional arrows).
+- **Desktop Terminals (PTS) Inspector:** Inspect active processes running across `/dev/pts/*` (`zsh`, `python`, `gcc`, `htop`, etc.).
+- **1-Click Mirrored Terminal Launch:** Launch an attached terminal window on your PC directly from the companion hub.
+
+### AirDrop-Style File Transfers & PC Directory Browser
+- **Direct Local Drop:** Send photos, archives, APKs, or videos straight from Android to your Linux `~/Downloads` folder.
+- **Custom Default Locations:** Pick any PC directory as your permanent default save folder.
+- **Interactive Directory Browser:** Navigate the PC filesystem directly from your phone and download files back to the mobile device.
+
+### Universal Shared Clipboard
+- **Bidirectional Sync:** Copy text on Linux and have it instantly available on Android.
+- **X11 Clipboard Daemon:** Seamlessly interfaces with `xclip` and `xsel`.
+
+### Remote Hardware Vitals & MPRIS Media Control
+- **Workstation Telemetry:** Monitor live CPU load percentage, clock frequency, RAM usage, swap space, root disk utilization, and thermal sensors.
+- **MPRIS Integration:** View track title, artist, album art, and control playback for Spotify, VLC, YouTube, MPV, and browser players.
+
+---
+
+## Prerequisites
+
+Ensure your Linux system has Python 3.10+, X11 utilities, and required libraries installed:
+
+### Debian / Ubuntu / Kali / Linux Mint:
 ```bash
-# Debian / Ubuntu / Kali
 sudo apt update
-sudo apt install python3 python3-pyqt6 python3-tornado tmux xdotool imagemagick xclip
+sudo apt install -y python3 python3-pip python3-pyqt6 python3-tornado \
+                    tmux xdotool imagemagick xclip xsel adb
 ```
 
-### Installation
-
+### Arch Linux / Manjaro:
 ```bash
-git clone https://github.com/killindodo/linux-continuity.git
-cd linux-continuity
-./install_desktop.sh
+sudo pacman -Syu --needed python python-pyqt6 python-tornado \
+                          tmux xdotool imagemagick xclip xsel android-tools
+```
+
+### Fedora:
+```bash
+sudo dnf install -y python3 python3-qt5 python3-tornado \
+                    tmux xdotool ImageMagick xclip xsel android-tools
 ```
 
 ---
 
-## Usage
+## Installation Guide
 
-### 1. Launch the Desktop Hub
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/killindodo/linux-continuity.git
+   cd linux-continuity
+   ```
 
-Run via terminal or your application launcher:
+2. **Run Desktop Installer:**
+   The installation script sets up desktop menu shortcuts and application binaries:
+   ```bash
+   chmod +x install_desktop.sh
+   ./install_desktop.sh
+   ```
 
-```bash
-continuity
-```
-
-Or run headless in the background:
-
-```bash
-python3 server.py --port 8080
-```
-
-### 2. Connect from Android
-
-1. Ensure your Android phone is connected to the same Wi-Fi network as your PC (or use Remote Tunnel / Tailscale).
-2. Point your phone camera at the QR code displayed on the desktop window (or open the displayed URL in your mobile browser, e.g., `http://192.168.x.x:8080`).
-3. You now have full terminal access, screen mirroring, live clipboard sync, and file dropping!
-
----
-
-## Watching & Controlling Running Terminals
-
-To watch a command or program running on your PC from your Android phone:
-1. In the desktop companion app, click **"⚡ Launch Shared Terminal"** (or in an existing terminal run `tmux new-session -A -s main`).
-2. Run any command you want on your PC (e.g. `htop`, `python script.py`, build scripts, or long downloads).
-3. On your phone, open the **Terminal** tab. You will see the exact same session live!
-4. Any keystroke on your phone is reflected on your PC screen, and any output produced on your PC is mirrored on your phone.
-5. If you want to see what is running in other non-shared terminals on your PC, tap **"📋 Running (PTS)"** to inspect active processes across all terminals.
-6. Alternatively, open the **🖥️ Screen Mirror** tab to see your entire desktop screen visually!
+3. **Launch Linux Continuity:**
+   Launch from your desktop application menu or via terminal:
+   ```bash
+   continuity
+   ```
+   *(Or launch directly with Python: `python3 app.py`)*
 
 ---
 
-## Remote Terminal Connection (When Away from PC)
+## Connecting Your Phone
 
-When you are away from your PC (e.g., outside on 4G/5G mobile data or connected to external Wi-Fi), you have 3 powerful ways to watch and control your PC terminal remotely:
+### Option A: Native Android Companion App (Recommended)
+1. Download the pre-built APK directly from your PC dashboard by clicking **"Download Android App (.apk)"**, or access `http://<pc-ip>:8080/apk/LinuxContinuity.apk` in your mobile browser.
+2. Install the APK on your Android device (ensure *"Install Unknown Apps"* is allowed for your browser/installer).
+3. Open **Linux Continuity** on your phone, enter your PC's IP address (Local Wi-Fi or Tailscale) and the PIN shown on your PC screen, then tap **Connect**.
+4. Click **Approve** on the PC pairing prompt.
 
-### Option 1: Mobile Web Terminal (Browser / Zero Install)
-- **Cloudflare Public Tunnel**: Click **"☁️ Public Remote Tunnel"** -> **"⚡ Start Public Tunnel"** (can also be toggled directly from your phone in the Controls tab).
-  - Gives you an encrypted public HTTPS URL (`https://*.trycloudflare.com`).
-  - Protected by your 4-digit Security PIN.
-  - Built-in 15-second WebSocket heartbeats prevent mobile cellular carrier drops and NAT timeouts.
-  - Auto-reconnects with exponential backoff on network switches or screen wake.
-- **Dedicated Standalone Terminal**: Open `https://<tunnel>/terminal` or `http://<tailscale-ip>:8080/terminal` for a clean, distraction-free full-screen shell that you can add directly to your Android Home Screen.
+> [!TIP]
+> The source code for the Android application is located in [`android/`](android/). You can build it from source anytime using `./gradlew assembleDebug`.
 
-### Option 2: Tailscale Mesh VPN (Private Peer-to-Peer)
-Click **"🌐 Tailscale VPN"** in the desktop app.
-1. Connect your PC to Tailscale:
+### Option B: Progressive Web App / Mobile Browser
+1. Connect your phone to the same Wi-Fi network as your PC.
+2. Scan the QR code displayed on the desktop hub using your phone camera, or navigate to `http://<pc-ip>:8080`.
+3. Enter the 4-digit PIN displayed on your PC.
+4. *(Optional)* Tap your browser menu and select **"Add to Home Screen"** to install it as a standalone app.
+
+### Remote Access via Tailscale Mesh VPN
+To access your workstation from anywhere (outside local Wi-Fi or on mobile cellular data):
+1. Install **Tailscale** on your Linux PC:
    ```bash
    sudo tailscale up
    ```
-2. Install the free **Tailscale** app on your Android phone and sign in with the same account.
-3. Open `http://<tailscale-ip>:8080` (or `http://<tailscale-ip>:8080/terminal`) in your phone browser.
-4. Direct, end-to-end encrypted WireGuard connection with minimal latency.
-
-### Option 3: Direct Mobile SSH Terminal (Termux / JuiceSSH / Termius)
-If you prefer using a native terminal app on Android:
-1. Connect via Tailscale mesh:
-   ```bash
-   ssh killindodo@100.66.109.94
-   ```
-2. Or attach directly into the live shared tmux session running on your PC:
-   ```bash
-   ssh killindodo@100.66.109.94 -t tmux new-session -A -s main
-   ```
-   Whatever you do in this SSH terminal is simultaneously visible on your laptop screen and the Continuity web app!
+2. Install the free **Tailscale** app on your Android device and sign in to the same tailnet.
+3. In the Linux Continuity companion app, switch the Network Mode to **"🌐 Tailscale Mesh VPN"**.
+4. Open the Tailscale IP (`http://100.x.y.z:8080`) on your phone or Android app. All traffic is end-to-end WireGuard encrypted.
 
 ---
 
-## Preventing Laptop Sleep While Away
+## Architecture & Internal Data Flow
 
-To keep your Linux PC awake and connected when the lid is closed while away:
-
-- **KDE Plasma**: System Settings -> Power Management -> When laptop lid is closed -> Select **"Turn off screen"** (instead of Sleep).
-- **CLI / One-Liner**:
-  ```bash
-  systemd-inhibit --what=idle:sleep:handle-lid-switch --why="Remote Continuity" bash
-  ```
+| Component | File Path | Responsibilities |
+| :--- | :--- | :--- |
+| **GUI Companion Hub** | [`ui/main_window.py`](ui/main_window.py) | PyQt6 desktop window, tabs, system tray icon, real-time telemetry display, device authorizations. |
+| **HTTP/WebSocket Core** | [`server.py`](server.py) | Tornado server, WebSocket endpoints (`/ws/terminal`, `/ws/clipboard`), REST API routing. |
+| **Security & Zero-Trust** | [`core/auth.py`](core/auth.py) | PIN verification, session tokens, rate limiting, IP blocking, zero-trust approvals. |
+| **Activity Logger** | [`core/activity_logger.py`](core/activity_logger.py) | Real-time security audit log, connection tracking, command history. |
+| **Interactive Terminal** | [`core/terminal_pty.py`](core/terminal_pty.py) | PTY spawning, tmux session multiplexing, terminal window launcher. |
+| **File Management** | [`core/file_manager.py`](core/file_manager.py) | Upload handler, download stream, filesystem directory browser. |
+| **Hardware & Audio** | [`core/media_controller.py`](core/media_controller.py) | MPRIS D-Bus client, system volume control via `amixer`/`pactl`. |
+| **Hardware Vitals** | [`core/system_monitor.py`](core/system_monitor.py) | CPU load, memory utilization, disk space, temperatures, battery status. |
+| **Android Application** | [`android/`](android/) | Kotlin Android app, native BatteryManager bridge, ring/vibrate/toast dispatchers. |
 
 ---
 
-## Background Autostart (Optional)
+## Configuration & Autostart
 
-To have the Continuity server automatically start whenever you log into Linux:
+Configuration files are stored cleanly in your user directory:
+- **Application Config:** `~/.config/linux-continuity/config.json`
+- **Blocked IP Blacklist:** `~/.config/linux-continuity/blocked_devices.json`
 
+### Enabling Background Autostart on Boot
+To run Linux Continuity automatically upon user login:
 ```bash
 systemctl --user enable --now linux-continuity
 ```
 
----
-
-## Author
-
-**killindodo**
-- GitHub: [@killindodo](https://github.com/killindodo)
-- Repository: [https://github.com/killindodo/linux-continuity](https://github.com/killindodo/linux-continuity)
+To inspect service logs:
+```bash
+journalctl --user -u linux-continuity -f
+```
 
 ---
 
-## License
+## Troubleshooting & FAQ
 
-MIT License
+### 1. "No active phone connected" when sending remote commands
+- Ensure the phone has completed pairing and is listed in the **Devices & Security** tab.
+- If using mobile browser mode, keep the Continuity tab active. On the Android native app, background permissions maintain the bridge.
+
+### 2. Terminal session fails to mirror on PC
+- Ensure `tmux` is installed: `sudo apt install tmux`.
+- Click **"Launch Mirrored Konsole"** (or terminal) from the Connect Hub to spawn an attached desktop window.
+
+### 3. File upload fails or permissions error
+- The default destination is `~/Downloads`. Verify write permissions on your downloads folder:
+  ```bash
+  chmod 755 ~/Downloads
+  ```
+- Alternatively, use the **File Transfers** tab on PC to set another directory.
+
+### 4. Clipboard sync not updating on Linux
+- Verify `xclip` or `xsel` is installed: `which xclip`.
+- If running under Wayland, ensure XWayland compatibility is active or install `wl-clipboard`.
+
+---
+
+## Author & License
+
+- **Developer:** [killindodo](https://github.com/killindodo)
+- **GitHub Repository:** [https://github.com/killindodo/linux-continuity](https://github.com/killindodo/linux-continuity)
+- **License:** Released under the [MIT License](LICENSE).

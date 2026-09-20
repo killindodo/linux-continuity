@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0f172a">
+
+    <!-- Web View container for Continuity Hub -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Progress indicator -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_alignParentTop="true"
+        android:visibility="gone" />
+
+    <!-- Connection & Zero-Trust Pairing Setup Layout -->
+    <ScrollView
+        android:id="@+id/connectionLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="28dp">
+
+            <ImageView
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:src="@drawable/ic_launcher"
+                android:contentDescription="App Logo"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Linux Continuity"
+                android:textColor="#00d2ff"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dedicated Tailscale &amp; Local Mesh Client"
+                android:textColor="#94a3b8"
+                android:textSize="13sp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="28dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="20dp"
+                android:elevation="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="TAILSCALE / PC HOST IP:"
+                    android:textColor="#94a3b8"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/etHostIp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="e.g. 100.x.y.z or 192.168.1.x"
+                    android:textColorHint="#475569"
+                    android:textColor="#f8fafc"
+                    android:inputType="textUri"
+                    android:background="#0f172a"
+                    android:padding="12dp"
+                    android:textSize="15sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PORT:"
+                    android:textColor="#94a3b8"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/etPort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="8080"
+                    android:textColor="#f8fafc"
+                    android:inputType="number"
+                    android:background="#0f172a"
+                    android:padding="12dp"
+                    android:textSize="15sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SECURITY PIN:"
+                    android:textColor="#94a3b8"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/etPin"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="2550"
+                    android:text="2550"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#475569"
+                    android:inputType="numberPassword"
+                    android:background="#0f172a"
+                    android:padding="12dp"
+                    android:textSize="15sp"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="20dp" />
+
+                <Button
+                    android:id="@+id/btnConnect"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⚡ Connect to PC"
+                    android:backgroundTint="#007aff"
+                    android:textColor="#ffffff"
+                    android:textSize="15sp"
+                    android:padding="14dp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textColor="#34c759"
+                    android:textSize="13sp"
+                    android:layout_marginTop="14dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Zero-Trust Authentication • Protected by PC Host Approval"
+                android:textColor="#64748b"
+                android:textSize="11sp"
+                android:layout_marginTop="20dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</RelativeLayout>

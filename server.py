@@ -7,6 +7,7 @@ Developed by killindodo
 
 import os
 import sys
+import time
 import json
 import socket
 import subprocess
@@ -50,7 +51,6 @@ from core.power_manager import (
     send_desktop_notification
 )
 from core.tunnel import (
-    tunnel_mgr,
     get_tailscale_ip,
     get_ssh_info,
     is_tailscale_running,
@@ -65,12 +65,42 @@ from core.window_controller import (
     capture_window_frame,
     send_to_window
 )
+from core.activity_logger import audit_logger
 
 # Globals
 file_mgr = FileManager()
 clip_sync = ClipboardSync()
 auth_mgr = AuthManager()
 connected_clip_clients = set()
+connected_term_clients = set()
+
+
+def on_auth_security_event(event_type, data):
+    """Disconnects live WebSockets immediately when an administrator kicks or blocks a device."""
+    if event_type in ("device_kicked", "device_blocked"):
+        token = data.get("token")
+        ip = data.get("ip")
+        # Disconnect terminal sockets
+        for ws in list(connected_term_clients):
+            ws_token = getattr(ws, "client_token", None)
+            ws_ip = getattr(ws, "client_ip", None)
+            if (token and ws_token == token) or (ip and ws_ip == ip):
+                try:
+                    ws.write_message(b"\r\n\x1b[31m[!] Disconnected: Session terminated by PC administrator.\x1b[0m\r\n", binary=True)
+                    ws.close()
+                except Exception:
+                    pass
+        # Disconnect clipboard sockets
+        for ws in list(connected_clip_clients):
+            ws_token = getattr(ws, "client_token", None)
+            ws_ip = getattr(ws, "client_ip", None)
+            if (token and ws_token == token) or (ip and ws_ip == ip):
+                try:
+                    ws.close()
+                except Exception:
+                    pass
+
+auth_mgr.add_pairing_listener(on_auth_security_event)
 
 
 def get_local_ip() -> str:
@@ -102,31 +132,379 @@ clip_sync.start_polling()
 
 
 class AuthHandler(tornado.web.RequestHandler):
+    """Handles pairing requests with device metadata, PIN verification, and Zero-Trust host authorization."""
     def post(self):
+        client_ip = self.request.remote_ip
+        if auth_mgr.is_ip_blocked(client_ip):
+            self.set_status(403)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"status": "blocked", "message": "Access Denied: This device or IP address has been blocked by the PC administrator."}))
+            return
+
         try:
             data = json.loads(self.request.body)
-            pin = data.get("pin", "")
-            token = auth_mgr.verify_pin(pin)
-            if token:
+            pin = str(data.get("pin", "")).strip()
+            device_name = str(data.get("device_name", "")).strip() or f"Client ({client_ip})"
+            user_agent = self.request.headers.get("User-Agent", "")
+
+            # Execute device pairing handshake
+            res = auth_mgr.request_pairing(pin, device_name, client_ip, user_agent)
+            if res.get("status") == "approved":
                 self.set_header("Content-Type", "application/json")
-                self.write(json.dumps({"status": "success", "token": token}))
+                self.write(json.dumps({"status": "success", "token": res["token"], "device_name": device_name}))
+            elif res.get("status") == "pending":
+                self.set_header("Content-Type", "application/json")
+                self.write(json.dumps(res))
+            elif res.get("status") == "blocked":
+                self.set_status(403)
+                self.set_header("Content-Type", "application/json")
+                self.write(json.dumps(res))
             else:
                 self.set_status(401)
                 self.set_header("Content-Type", "application/json")
-                self.write(json.dumps({"status": "error", "message": "Invalid PIN"}))
+                self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(400)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class PairStatusHandler(tornado.web.RequestHandler):
+    """Polled by mobile clients waiting for PC administrator approval."""
+    def get(self):
+        req_id = self.get_argument("req_id", "")
+        res = auth_mgr.check_pairing_status(req_id)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(res))
+
+
+class AdminDevicesHandler(tornado.web.RequestHandler):
+    """Admin API for PC dashboard to inspect active, pending, and blocked devices."""
+    def get(self):
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        is_local = client_ip in ("127.0.0.1", "::1")
+        if not is_local and not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        # Ensure any active WebSocket clients are kept marked as live
+        all_ws_clients = connected_term_clients.union(connected_clip_clients)
+        for ws in all_ws_clients:
+            ws_ip = getattr(ws, "client_ip", None)
+            ws_token = getattr(ws, "client_token", None)
+            if ws_ip and ws_ip not in ("127.0.0.1", "::1", "localhost"):
+                auth_mgr.record_activity(ws_token, ws_ip)
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({
+            "status": "ok",
+            "active_devices": auth_mgr.get_active_devices(),
+            "pending_requests": auth_mgr.get_pending_requests(),
+            "blocked_devices": auth_mgr.get_blocked_devices(),
+            "require_admin_approval": auth_mgr.require_admin_approval,
+            "security_pin": auth_mgr.pin
+        }))
+
+
+class AdminDeviceActionHandler(tornado.web.RequestHandler):
+    """Admin API to approve, reject, kick, block, or unblock devices directly from PC."""
+    def post(self):
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        is_local = client_ip in ("127.0.0.1", "::1")
+        if not is_local and not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            data = json.loads(self.request.body)
+            action = data.get("action")
+            target = data.get("target")
+
+            if action == "approve":
+                token_out = auth_mgr.approve_pairing(target)
+                self.write(json.dumps({"status": "ok" if token_out else "error", "token": token_out}))
+            elif action == "reject":
+                ok = auth_mgr.reject_pairing(target)
+                self.write(json.dumps({"status": "ok" if ok else "error"}))
+            elif action == "kick":
+                ok = auth_mgr.kick_session(target) or bool(auth_mgr.kick_ip(target))
+                self.write(json.dumps({"status": "ok" if ok else "error"}))
+            elif action == "block":
+                if target in auth_mgr.pending_requests:
+                    req_ip = auth_mgr.pending_requests[target]["ip"]
+                    auth_mgr.reject_pairing(target, block_ip=True)
+                    ok = auth_mgr.block_ip(req_ip)
+                else:
+                    ok = auth_mgr.block_ip(target)
+                self.write(json.dumps({"status": "ok" if ok else "error"}))
+            elif action == "unblock":
+                ok = auth_mgr.unblock_ip(target)
+                self.write(json.dumps({"status": "ok" if ok else "error"}))
+            elif action == "set_policy":
+                require_approval = bool(data.get("require_approval", True))
+                auth_mgr.set_require_admin_approval(require_approval)
+                self.write(json.dumps({"status": "ok", "require_admin_approval": require_approval}))
+            else:
+                self.set_status(400)
+                self.write(json.dumps({"status": "error", "message": "Unknown action"}))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class AdminLogsHandler(tornado.web.RequestHandler):
+    """Returns real-time activity and security audit logs."""
+    def get(self):
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        is_local = client_ip in ("127.0.0.1", "::1")
+        if not is_local and not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+        limit = int(self.get_argument("limit", 150))
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({
+            "status": "ok",
+            "logs": audit_logger.get_logs(limit=limit)
+        }))
+
+    def delete(self):
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        is_local = client_ip in ("127.0.0.1", "::1")
+        if not is_local and not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+        audit_logger.clear()
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"status": "ok", "message": "Logs cleared"}))
+
+
+class PhoneControlHandler(tornado.web.RequestHandler):
+    """Sends remote control commands from PC host to connected Android phone(s)."""
+    pending_commands = []
+
+    def post(self):
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        is_local = client_ip in ("127.0.0.1", "::1")
+        if not is_local and not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            data = json.loads(self.request.body)
+            action = data.get("action")
+            param = data.get("param", "")
+            target_ip = data.get("target_ip", None)
+
+            msg = json.dumps({
+                "type": "phone_control",
+                "action": action,
+                "param": param
+            })
+
+            delivered = 0
+            delivered_ips = set()
+
+            # 1. Deliver to connected clipboard WebSockets
+            for ws in list(connected_clip_clients):
+                ws_ip = getattr(ws, "client_ip", None)
+                if not target_ip or ws_ip == target_ip:
+                    try:
+                        ws.write_message(msg)
+                        delivered += 1
+                        if ws_ip:
+                            delivered_ips.add(ws_ip)
+                    except Exception:
+                        pass
+
+            # 2. Also deliver to connected terminal WebSockets if not already delivered
+            for ws in list(connected_term_clients):
+                ws_ip = getattr(ws, "client_ip", None)
+                if ws_ip and ws_ip in delivered_ips:
+                    continue
+                if not target_ip or ws_ip == target_ip:
+                    try:
+                        ws.write_message(msg)
+                        delivered += 1
+                        if ws_ip:
+                            delivered_ips.add(ws_ip)
+                    except Exception:
+                        pass
+
+            # 3. Buffer in pending_commands for polling fallback
+            cmd_entry = {
+                "id": uuid.uuid4().hex[:8],
+                "action": action,
+                "param": param,
+                "target_ip": target_ip,
+                "timestamp": time.time(),
+                "delivered_ips": set(delivered_ips)
+            }
+            PhoneControlHandler.pending_commands.append(cmd_entry)
+            now = time.time()
+            PhoneControlHandler.pending_commands = [
+                c for c in PhoneControlHandler.pending_commands if now - c["timestamp"] < 30.0
+            ]
+
+            has_active = len([d for d in auth_mgr.get_active_devices() if not d.get("is_localhost")]) > 0
+            audit_logger.log("PHONE_CTRL", f"Executed '{action}' on phone (delivered to {delivered} client(s), queued: {has_active})")
+            self.write(json.dumps({
+                "status": "ok",
+                "delivered": delivered,
+                "has_active_devices": has_active
+            }))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+    def get(self):
+        """Allows phone to poll for pending commands as fallback."""
+        token = self.get_argument("token", None)
+        client_ip = self.request.remote_ip
+        if not auth_mgr.is_authorized(token, client_ip):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        now = time.time()
+        cmds_to_send = []
+        for cmd in PhoneControlHandler.pending_commands:
+            if not cmd.get("target_ip") or cmd.get("target_ip") == client_ip:
+                delivered_set = cmd.setdefault("delivered_ips", set())
+                if client_ip not in delivered_set:
+                    cmds_to_send.append({"action": cmd["action"], "param": cmd["param"]})
+                    delivered_set.add(client_ip)
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"status": "ok", "commands": cmds_to_send}))
+
+
+class PhoneTelemetryHandler(tornado.web.RequestHandler):
+    """Stores and serves real telemetry from Android phone (battery, charging, screen, etc.)."""
+    telemetry_store = {}
+
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            client_ip = self.request.remote_ip
+            # Ignore localhost telemetry (tests)
+            if client_ip in ("127.0.0.1", "::1", "localhost"):
+                self.write(json.dumps({"status": "ok", "ignored": "localhost"}))
+                return
+
+            now = time.time()
+            data["ip"] = client_ip
+            data["updated_at"] = now
+            ua = self.request.headers.get("User-Agent", "")
+            dev = data.get("device", "")
+            auth_mgr.record_activity(None, client_ip, ua, dev)
+
+            # Match clean device name from session if available
+            clean_name = None
+            for sess in auth_mgr.active_sessions.values():
+                if sess.get("ip") == client_ip and sess.get("device_name"):
+                    clean_name = sess.get("device_name")
+                    break
+            if clean_name:
+                data["device"] = clean_name
+            elif dev and "I2221" in dev:
+                data["device"] = "iQOO Neo 9 Pro (I2221)"
+
+            PhoneTelemetryHandler.telemetry_store[client_ip] = data
+            self.write(json.dumps({"status": "ok"}))
         except Exception as e:
             self.set_status(400)
             self.write(json.dumps({"status": "error", "message": str(e)}))
 
+    def get(self):
+        now = time.time()
+        # Clean out stale (> 60s) or localhost entries
+        valid_store = {}
+        for ip, t in PhoneTelemetryHandler.telemetry_store.items():
+            if ip not in ("127.0.0.1", "::1", "localhost") and (now - t.get("updated_at", 0)) < 60.0:
+                valid_store[ip] = t
+        PhoneTelemetryHandler.telemetry_store = valid_store
+
+        target_ip = self.get_argument("ip", None)
+        selected_tel = None
+
+        if target_ip and target_ip in valid_store:
+            selected_tel = valid_store[target_ip]
+        elif valid_store:
+            selected_tel = list(valid_store.values())[-1]
+        else:
+            # Check if there is an active remote device in auth_mgr that has not yet sent telemetry
+            active_devs = [d for d in auth_mgr.get_active_devices() if not d.get("is_localhost")]
+            if active_devs:
+                latest_dev = active_devs[-1]
+                selected_tel = {
+                    "device": latest_dev.get("device_name", "Android Phone"),
+                    "ip": latest_dev.get("ip", ""),
+                    "battery": None,
+                    "charging": False,
+                    "status": "connected",
+                    "updated_at": now
+                }
+            else:
+                selected_tel = None
+
+        self.set_header("Content-Type", "application/json")
+        if selected_tel:
+            self.write(json.dumps({"status": "ok", "telemetry": selected_tel}))
+        else:
+            self.write(json.dumps({"status": "idle", "telemetry": None}))
+
+
+class PhoneCameraFrameHandler(tornado.web.RequestHandler):
+    """Receives camera snapshots from Android phone and serves to PC viewfinder."""
+    latest_frame = None
+    latest_frame_time = 0
+    stream_active = False
+
+    def post(self):
+        PhoneCameraFrameHandler.latest_frame = self.request.body
+        PhoneCameraFrameHandler.latest_frame_time = time.time()
+        PhoneCameraFrameHandler.stream_active = True
+        self.write(json.dumps({"status": "ok"}))
+
+    def get(self):
+        now = time.time()
+        if PhoneCameraFrameHandler.latest_frame and (now - PhoneCameraFrameHandler.latest_frame_time) < 6.0:
+            self.set_header("Content-Type", "image/jpeg")
+            self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.write(PhoneCameraFrameHandler.latest_frame)
+        else:
+            self.set_status(404)
+            self.write("No active phone camera frame")
+
 
 class IndexHandler(tornado.web.RequestHandler):
     def get(self):
+        client_ip = self.request.remote_ip
+        if auth_mgr.is_ip_blocked(client_ip):
+            self.set_status(403)
+            self.write("<h1>403 Forbidden</h1><p>Access Denied: Your IP address has been blocked by the Linux PC administrator.</p>")
+            return
         self.render(os.path.join(PROJECT_ROOT, "templates", "index.html"))
 
 
 class TerminalStandaloneHandler(tornado.web.RequestHandler):
     """Direct, distraction-free full-screen terminal page for mobile browsers."""
     def get(self):
+        client_ip = self.request.remote_ip
+        if auth_mgr.is_ip_blocked(client_ip):
+            self.set_status(403)
+            self.write("<h1>403 Forbidden</h1><p>Access Denied: Blocked by administrator.</p>")
+            return
         self.render(os.path.join(PROJECT_ROOT, "templates", "terminal.html"))
 
 
@@ -144,11 +522,17 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
         return True  # Allow local network and remote tunnel connections
 
     def open(self):
+        client_ip = self.request.remote_ip
         token = self.get_argument("token", None)
-        if not auth_mgr.is_authorized(token):
-            self.write_message(b"\r\n\x1b[31m[!] Unauthorized: Security PIN required.\x1b[0m\r\n", binary=True)
+        ua = self.request.headers.get("User-Agent", "")
+        if auth_mgr.is_ip_blocked(client_ip) or not auth_mgr.is_authorized(token, client_ip, ua):
+            self.write_message(b"\r\n\x1b[31m[!] Unauthorized: Access blocked or invalid PIN.\x1b[0m\r\n", binary=True)
             self.close()
             return
+
+        self.client_token = token
+        self.client_ip = client_ip
+        connected_term_clients.add(self)
 
         session_name = self.get_argument("session", "main").strip() or "main"
         self.session = TerminalSession(
@@ -164,26 +548,22 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
             pass
 
     def on_message(self, message):
-        if not hasattr(self, "session"):
-            return  # Auth was rejected; session was never created
-        try:
-            msg = json.loads(message)
-            msg_type = msg.get("type")
-            if msg_type == "input":
-                self.session.write(msg.get("data", ""))
-            elif msg_type == "resize":
-                cols = int(msg.get("cols", 80))
-                rows = int(msg.get("rows", 24))
-                self.session.resize(cols, rows)
-            elif msg_type == "ping":
-                # Latency heartbeat
-                self.write_message(json.dumps({"type": "pong", "t": msg.get("t", 0)}))
-        except Exception:
-            # Raw string fallback
+        if hasattr(self, "session"):
+            if isinstance(message, str) and message.startswith("{") and message.endswith("}"):
+                try:
+                    data = json.loads(message)
+                    if data.get("type") == "resize":
+                        cols = int(data.get("cols", 80))
+                        rows = int(data.get("rows", 24))
+                        self.session.resize(cols, rows)
+                        return
+                except Exception:
+                    pass
             if isinstance(message, str):
                 self.session.write(message)
 
     def on_close(self):
+        connected_term_clients.discard(self)
         if hasattr(self, "session"):
             self.session.close()
 
@@ -191,7 +571,7 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
 class ClipboardWebSocket(tornado.websocket.WebSocketHandler):
     @property
     def ping_interval(self):
-        return 15
+        return 12
 
     @property
     def ping_timeout(self):
@@ -201,10 +581,14 @@ class ClipboardWebSocket(tornado.websocket.WebSocketHandler):
         return True
 
     def open(self):
+        client_ip = self.request.remote_ip
         token = self.get_argument("token", None)
-        if not auth_mgr.is_authorized(token):
+        ua = self.request.headers.get("User-Agent", "")
+        if auth_mgr.is_ip_blocked(client_ip) or not auth_mgr.is_authorized(token, client_ip, ua):
             self.close()
             return
+        self.client_token = token
+        self.client_ip = client_ip
         connected_clip_clients.add(self)
         # Send current clipboard immediately on connect
         current = clip_sync.get_clipboard()
@@ -380,10 +764,10 @@ class TerminalsApiHandler(tornado.web.RequestHandler):
 
 
 class TunnelApiHandler(tornado.web.RequestHandler):
-    """Remote connectivity status and control endpoint (Tailscale, Cloudflare, SSH)."""
+    """Remote connectivity status and control endpoint (Tailscale Mesh VPN & SSH)."""
     def get(self):
         token = self.get_argument("token", None)
-        if not auth_mgr.is_authorized(token):
+        if not auth_mgr.is_authorized(token, self.request.remote_ip, self.request.headers.get("User-Agent", "")):
             self.set_status(401)
             self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
             return
@@ -391,8 +775,6 @@ class TunnelApiHandler(tornado.web.RequestHandler):
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps({
             "status": "ok",
-            "tunnel_active": tunnel_mgr.is_running,
-            "tunnel_url": tunnel_mgr.public_url,
             "tailscale_ip": get_tailscale_ip(),
             "tailscale_running": is_tailscale_running(),
             "local_ip": get_local_ip(),
@@ -401,7 +783,7 @@ class TunnelApiHandler(tornado.web.RequestHandler):
 
     def post(self):
         token = self.get_argument("token", None)
-        if not auth_mgr.is_authorized(token):
+        if not auth_mgr.is_authorized(token, self.request.remote_ip, self.request.headers.get("User-Agent", "")):
             self.set_status(401)
             self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
             return
@@ -409,12 +791,10 @@ class TunnelApiHandler(tornado.web.RequestHandler):
         try:
             data = json.loads(self.request.body)
             action = data.get("action")
-            if action == "start":
-                ok = tunnel_mgr.start()
-                self.write(json.dumps({"status": "ok" if ok else "error", "started": ok}))
-            elif action == "stop":
-                tunnel_mgr.stop()
-                self.write(json.dumps({"status": "ok", "stopped": True}))
+            if action == "tailscale_toggle":
+                enable = bool(data.get("enable", True))
+                res = toggle_tailscale(enable)
+                self.write(json.dumps(res))
             else:
                 self.set_status(400)
                 self.write(json.dumps({"status": "error", "message": "Unknown action"}))
@@ -729,8 +1109,6 @@ class InfoHandler(tornado.web.RequestHandler):
             "hostname": socket.gethostname(),
             "ip": get_local_ip(),
             "tailscale_ip": get_tailscale_ip(),
-            "tunnel_active": tunnel_mgr.is_running,
-            "tunnel_url": tunnel_mgr.public_url,
             "author": "killindodo",
             "version": "1.3.0",
             "require_pin": auth_mgr.require_pin
@@ -869,15 +1247,47 @@ class ServiceWorkerHandler(tornado.web.RequestHandler):
             self.write(f.read())
 
 
+class ApkDownloadHandler(tornado.web.RequestHandler):
+    """Serves the compiled Android APK directly to phone over Wi-Fi or Tailscale."""
+    def head(self):
+        apk_path = os.path.join(PROJECT_ROOT, "static", "apk", "LinuxContinuity.apk")
+        if not os.path.exists(apk_path):
+            self.set_status(404)
+            return
+        self.set_header("Content-Type", "application/vnd.android.package-archive")
+        self.set_header("Content-Disposition", 'attachment; filename="LinuxContinuity.apk"')
+        self.set_header("Content-Length", str(os.path.getsize(apk_path)))
+
+    def get(self):
+        apk_path = os.path.join(PROJECT_ROOT, "static", "apk", "LinuxContinuity.apk")
+        if not os.path.exists(apk_path):
+            self.set_status(404)
+            self.write("APK is being generated or not found.")
+            return
+        self.set_header("Content-Type", "application/vnd.android.package-archive")
+        self.set_header("Content-Disposition", 'attachment; filename="LinuxContinuity.apk"')
+        with open(apk_path, "rb") as f:
+            while chunk := f.read(65536):
+                self.write(chunk)
+
+
 def make_app():
     return tornado.web.Application([
         (r"/", IndexHandler),
         (r"/terminal", TerminalStandaloneHandler),
         (r"/manifest.json", ManifestHandler),
         (r"/sw.js", ServiceWorkerHandler),
+        (r"/download/app", ApkDownloadHandler),
         (r"/ws/terminal", TerminalWebSocket),
         (r"/ws/clipboard", ClipboardWebSocket),
         (r"/api/auth", AuthHandler),
+        (r"/api/auth/pair_status", PairStatusHandler),
+        (r"/api/admin/devices", AdminDevicesHandler),
+        (r"/api/admin/device_action", AdminDeviceActionHandler),
+        (r"/api/admin/logs", AdminLogsHandler),
+        (r"/api/phone/control", PhoneControlHandler),
+        (r"/api/phone/telemetry", PhoneTelemetryHandler),
+        (r"/api/phone/camera/frame", PhoneCameraFrameHandler),
         (r"/api/upload", UploadHandler),
         (r"/api/files", FilesListHandler),
         (r"/api/files/browse", FileBrowseHandler),
@@ -889,6 +1299,7 @@ def make_app():
         (r"/api/screen/click", ScreenClickHandler),
         (r"/api/screen/key", ScreenKeyHandler),
         (r"/api/trackpad", TrackpadHandler),
+        (r"/api/screen/trackpad", TrackpadHandler),
         (r"/api/system/stats", SystemStatsHandler),
         (r"/api/media/status", MediaStatusHandler),
         (r"/api/media/control", MediaControlHandler),
@@ -908,7 +1319,6 @@ def make_app():
 
 
 def run_server(port: int = 8080):
-    tunnel_mgr.local_port = port
     app = make_app()
     app.listen(port, address="0.0.0.0")
     ip = get_local_ip()

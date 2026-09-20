@@ -122,6 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }, 150);
           }
+        } else if (target === 'trackpad') {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
+          if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
         } else if (target === 'files') {
           if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
@@ -469,6 +473,8 @@ document.addEventListener('DOMContentLoaded', () => {
           } else if (msg.type === 'pong') {
             const rtt = Date.now() - (msg.t || Date.now());
             setStatus(true, `Connected (${rtt}ms)`);
+          } else if (msg.type === 'phone_control') {
+            handleRemotePhoneControl(msg.action, msg.param);
           }
         } catch (e) {
           if (term) term.write(evt.data);
@@ -774,6 +780,8 @@ document.addEventListener('DOMContentLoaded', () => {
               pcClipBox.classList.add('placeholder');
             }
           }
+        } else if (data.type === 'phone_control') {
+          handleRemotePhoneControl(data.action, data.param);
         }
       } catch (e) {}
     };
@@ -824,6 +832,237 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ----------------------------------------------------
+  // 3.5 Remote Phone Control & Telemetry Bridge
+  // ----------------------------------------------------
+  let alarmAudioCtx = null;
+  let alarmOsc = null;
+  let phoneCamStream = null;
+  let phoneCamInterval = null;
+
+  function playAlarmSound() {
+    stopAlarmSound();
+    try {
+      alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      alarmOsc = alarmAudioCtx.createOscillator();
+      const gain = alarmAudioCtx.createGain();
+      alarmOsc.type = 'sawtooth';
+      alarmOsc.frequency.setValueAtTime(880, alarmAudioCtx.currentTime);
+      gain.gain.setValueAtTime(0.8, alarmAudioCtx.currentTime);
+      alarmOsc.connect(gain);
+      gain.connect(alarmAudioCtx.destination);
+      alarmOsc.start();
+    } catch (e) {}
+  }
+
+  function stopAlarmSound() {
+    if (alarmOsc) {
+      try { alarmOsc.stop(); } catch (e) {}
+      alarmOsc = null;
+    }
+    if (alarmAudioCtx) {
+      try { alarmAudioCtx.close(); } catch (e) {}
+      alarmAudioCtx = null;
+    }
+  }
+
+  function startPhoneCameraStream(facing) {
+    stopPhoneCameraStream();
+    const mode = facing === 'front' ? 'user' : 'environment';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } })
+      .then(stream => {
+        phoneCamStream = stream;
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        const canvas = document.createElement('canvas');
+        canvas.width = 480;
+        canvas.height = 360;
+        const ctx = canvas.getContext('2d');
+
+        phoneCamInterval = setInterval(() => {
+          if (!video.videoWidth) return;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => {
+            if (!blob) return;
+            fetch('/api/phone/camera/frame', {
+              method: 'POST',
+              body: blob
+            }).catch(() => {});
+          }, 'image/jpeg', 0.6);
+        }, 600);
+      })
+      .catch(err => {
+        console.error('Camera stream error:', err);
+      });
+  }
+
+  function stopPhoneCameraStream() {
+    if (phoneCamInterval) {
+      clearInterval(phoneCamInterval);
+      phoneCamInterval = null;
+    }
+    if (phoneCamStream) {
+      phoneCamStream.getTracks().forEach(t => t.stop());
+      phoneCamStream = null;
+    }
+  }
+
+  function handleRemotePhoneControl(action, param) {
+    if (action === 'ring') {
+      if (window.AndroidBridge && window.AndroidBridge.ringPhone) {
+        window.AndroidBridge.ringPhone(true);
+      }
+      playAlarmSound();
+      showToast('🚨 "Find My Phone" Ringing!');
+    } else if (action === 'stop_ring') {
+      if (window.AndroidBridge && window.AndroidBridge.ringPhone) {
+        window.AndroidBridge.ringPhone(false);
+      }
+      stopAlarmSound();
+      showToast('Alarm stopped');
+    } else if (action === 'vibrate') {
+      if (window.AndroidBridge && window.AndroidBridge.vibratePhone) {
+        window.AndroidBridge.vibratePhone(500);
+      } else if (navigator.vibrate) {
+        navigator.vibrate([300, 150, 400, 150, 600]);
+      }
+      showToast('📳 Vibration triggered from PC');
+    } else if (action === 'toast') {
+      if (window.AndroidBridge && window.AndroidBridge.showToast) {
+        window.AndroidBridge.showToast(param || 'Message from PC');
+      }
+      showToast('💬 PC: ' + (param || 'Ping'));
+    } else if (action === 'url') {
+      if (window.AndroidBridge && window.AndroidBridge.openUrl) {
+        window.AndroidBridge.openUrl(param);
+      } else if (param) {
+        window.open(param, '_blank');
+      }
+      showToast('🌐 Opening URL from PC: ' + param);
+    } else if (action === 'volume_up') {
+      if (window.AndroidBridge && window.AndroidBridge.setVolume) {
+        window.AndroidBridge.setVolume(1);
+      }
+      showToast('🔊 Volume Up (from PC)');
+    } else if (action === 'volume_down') {
+      if (window.AndroidBridge && window.AndroidBridge.setVolume) {
+        window.AndroidBridge.setVolume(-1);
+      }
+      showToast('🔉 Volume Down (from PC)');
+    } else if (action === 'media_play_pause') {
+      if (window.AndroidBridge && window.AndroidBridge.playMediaKey) {
+        window.AndroidBridge.playMediaKey('play_pause');
+      }
+      showToast('⏯️ Play/Pause (from PC)');
+    } else if (action === 'media_next') {
+      if (window.AndroidBridge && window.AndroidBridge.playMediaKey) {
+        window.AndroidBridge.playMediaKey('next');
+      }
+      showToast('⏭️ Next Track (from PC)');
+    } else if (action === 'media_prev') {
+      if (window.AndroidBridge && window.AndroidBridge.playMediaKey) {
+        window.AndroidBridge.playMediaKey('prev');
+      }
+      showToast('⏮️ Previous Track (from PC)');
+    } else if (action === 'camera_start') {
+      startPhoneCameraStream(param);
+      showToast('📷 Camera Viewfinder active on PC');
+    } else if (action === 'camera_stop') {
+      stopPhoneCameraStream();
+      showToast('📷 Camera Viewfinder stopped');
+    }
+  }
+
+  // Battery Telemetry Reporting
+  function reportBatteryTelemetry() {
+    let batteryLevel = null;
+    let isCharging = false;
+    let deviceModel = (window.AndroidBridge && typeof window.AndroidBridge.getDeviceModel === 'function')
+      ? window.AndroidBridge.getDeviceModel()
+      : navigator.userAgent;
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.getBatteryLevel === 'function') {
+      try {
+        const lvl = window.AndroidBridge.getBatteryLevel();
+        if (typeof lvl === 'number' && lvl >= 0 && lvl <= 100) {
+          batteryLevel = lvl;
+        }
+      } catch (e) {}
+    }
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.isCharging === 'function') {
+      try {
+        isCharging = !!window.AndroidBridge.isCharging();
+      } catch (e) {}
+    }
+
+    if (batteryLevel !== null) {
+      fetch('/api/phone/telemetry', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          battery: batteryLevel,
+          charging: isCharging,
+          device: deviceModel
+        })
+      }).catch(() => {});
+      return;
+    }
+
+    if (navigator.getBattery) {
+      navigator.getBattery().then(b => {
+        fetch('/api/phone/telemetry', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            battery: Math.round(b.level * 100),
+            charging: b.charging,
+            device: deviceModel
+          })
+        }).catch(() => {});
+      }).catch(() => {
+        fetch('/api/phone/telemetry', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            battery: null,
+            charging: false,
+            device: deviceModel
+          })
+        }).catch(() => {});
+      });
+    } else {
+      fetch('/api/phone/telemetry', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          battery: null,
+          charging: false,
+          device: deviceModel
+        })
+      }).catch(() => {});
+    }
+  }
+  setInterval(reportBatteryTelemetry, 15000);
+  setTimeout(reportBatteryTelemetry, 1500);
+
+  // Fallback Phone Control Poller (for transient reconnects)
+  async function pollPendingPhoneCommands() {
+    if (document.hidden) return;
+    try {
+      const res = await fetch(`/api/phone/control?token=${encodeURIComponent(authToken)}`);
+      const data = await res.json();
+      if (data.status === 'ok' && Array.isArray(data.commands)) {
+        data.commands.forEach(cmd => {
+          handleRemotePhoneControl(cmd.action, cmd.param);
+        });
+      }
+    } catch (e) {}
+  }
+  setInterval(pollPendingPhoneCommands, 4000);
 
   // ----------------------------------------------------
   // 4. File Hub & Interactive PC Directory Browser
@@ -1712,6 +1951,296 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnToggleMicListen) btnToggleMicListen.addEventListener('click', toggleMicListen);
+
+  // ----------------------------------------------------
+  // Remote Trackpad & Mouse with Sensitivity Slider
+  // ----------------------------------------------------
+  const trackpadSurface = document.getElementById('trackpadSurface');
+  const trackpadPointer = document.getElementById('trackpadPointer');
+  const trackpadStatus = document.getElementById('trackpadStatus');
+  const trackpadSensSlider = document.getElementById('trackpadSensSlider');
+  const trackpadSensBadge = document.getElementById('trackpadSensBadge');
+
+  const btnTpLeft = document.getElementById('btnTpLeft');
+  const btnTpMiddle = document.getElementById('btnTpMiddle');
+  const btnTpRight = document.getElementById('btnTpRight');
+  const btnTpDrag = document.getElementById('btnTpDrag');
+
+  const btnTpScrollUp = document.getElementById('btnTpScrollUp');
+  const btnTpScrollDown = document.getElementById('btnTpScrollDown');
+
+  const btnToggleTrackpadViewfinder = document.getElementById('btnToggleTrackpadViewfinder');
+  const trackpadViewfinderBox = document.getElementById('trackpadViewfinderBox');
+  const trackpadScreenImg = document.getElementById('trackpadScreenImg');
+  const btnRefreshTrackpadScreen = document.getElementById('btnRefreshTrackpadScreen');
+
+  let trackpadSens = parseFloat(localStorage.getItem('continuity_trackpad_sens') || '1.2');
+  if (isNaN(trackpadSens) || trackpadSens < 0.2 || trackpadSens > 4.0) trackpadSens = 1.2;
+
+  function updateSensLabel(val) {
+    if (trackpadSensBadge) {
+      let speedDesc = 'Normal';
+      if (val <= 0.6) speedDesc = 'Precision';
+      else if (val <= 0.9) speedDesc = 'Smooth';
+      else if (val <= 1.4) speedDesc = 'Normal';
+      else if (val <= 2.2) speedDesc = 'Fast';
+      else speedDesc = 'Hyper';
+      trackpadSensBadge.textContent = `${val.toFixed(1)}x (${speedDesc})`;
+    }
+  }
+
+  if (trackpadSensSlider) {
+    trackpadSensSlider.value = trackpadSens;
+    updateSensLabel(trackpadSens);
+    trackpadSensSlider.addEventListener('input', () => {
+      trackpadSens = parseFloat(trackpadSensSlider.value);
+      updateSensLabel(trackpadSens);
+      localStorage.setItem('continuity_trackpad_sens', trackpadSens.toString());
+    });
+  }
+
+  async function sendTrackpadEvent(payload) {
+    try {
+      await fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      // Ignore transient network hiccups
+    }
+  }
+
+  // Drag state
+  let isDragging = false;
+  if (btnTpDrag) {
+    btnTpDrag.addEventListener('click', () => {
+      isDragging = !isDragging;
+      if (isDragging) {
+        btnTpDrag.textContent = '🔓 Release Drag';
+        btnTpDrag.style.backgroundColor = '#ff9f0a';
+        btnTpDrag.style.borderColor = '#ffb340';
+        if (trackpadStatus) {
+          trackpadStatus.textContent = 'Dragging';
+          trackpadStatus.style.color = '#ff9f0a';
+        }
+        sendTrackpadEvent({ type: 'mousedown', button: '1' });
+        showToast('Left Click Locked (Drag Active)');
+      } else {
+        btnTpDrag.textContent = '🔒 Drag & Hold';
+        btnTpDrag.style.backgroundColor = '';
+        btnTpDrag.style.borderColor = '';
+        if (trackpadStatus) {
+          trackpadStatus.textContent = 'Ready';
+          trackpadStatus.style.color = '';
+        }
+        sendTrackpadEvent({ type: 'mouseup', button: '1' });
+        showToast('Drag Released');
+      }
+    });
+  }
+
+  if (btnTpLeft) {
+    btnTpLeft.addEventListener('click', () => {
+      sendTrackpadEvent({ type: 'click', button: '1' });
+    });
+  }
+  if (btnTpMiddle) {
+    btnTpMiddle.addEventListener('click', () => {
+      sendTrackpadEvent({ type: 'click', button: '2' });
+    });
+  }
+  if (btnTpRight) {
+    btnTpRight.addEventListener('click', () => {
+      sendTrackpadEvent({ type: 'click', button: '3' });
+    });
+  }
+
+  if (btnTpScrollUp) {
+    btnTpScrollUp.addEventListener('click', () => {
+      sendTrackpadEvent({ type: 'scroll', direction: 'up', steps: 4 });
+    });
+  }
+  if (btnTpScrollDown) {
+    btnTpScrollDown.addEventListener('click', () => {
+      sendTrackpadEvent({ type: 'scroll', direction: 'down', steps: 4 });
+    });
+  }
+
+  // Quick Keys on trackpad tab
+  document.querySelectorAll('.tp-key').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.getAttribute('data-tpkey');
+      if (!key) return;
+      try {
+        await fetch(`/api/screen/key?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key })
+        });
+      } catch (e) {}
+    });
+  });
+
+  // Touch handling on the trackpad surface
+  if (trackpadSurface) {
+    let lastX = 0;
+    let lastY = 0;
+    let touchStartTime = 0;
+    let totalMoved = 0;
+    let lastTapTime = 0;
+    let moveTimer = null;
+    let pendingDx = 0;
+    let pendingDy = 0;
+
+    function flushMove() {
+      if (Math.abs(pendingDx) >= 0.5 || Math.abs(pendingDy) >= 0.5) {
+        const dxToSend = Math.round(pendingDx);
+        const dyToSend = Math.round(pendingDy);
+        pendingDx -= dxToSend;
+        pendingDy -= dyToSend;
+        if (dxToSend !== 0 || dyToSend !== 0) {
+          sendTrackpadEvent({ type: 'move', dx: dxToSend, dy: dyToSend });
+        }
+      }
+      moveTimer = null;
+    }
+
+    trackpadSurface.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+        touchStartTime = Date.now();
+        totalMoved = 0;
+
+        if (trackpadPointer) {
+          const rect = trackpadSurface.getBoundingClientRect();
+          trackpadPointer.style.left = `${touch.clientX - rect.left}px`;
+          trackpadPointer.style.top = `${touch.clientY - rect.top}px`;
+          trackpadPointer.style.display = 'block';
+        }
+      } else if (e.touches.length === 2) {
+        // 2-finger gesture start
+        lastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        touchStartTime = Date.now();
+        totalMoved = 0;
+      }
+    }, { passive: false });
+
+    trackpadSurface.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const rawDx = touch.clientX - lastX;
+        const rawDy = touch.clientY - lastY;
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+
+        const scaledDx = rawDx * trackpadSens;
+        const scaledDy = rawDy * trackpadSens;
+        totalMoved += Math.hypot(rawDx, rawDy);
+
+        pendingDx += scaledDx;
+        pendingDy += scaledDy;
+
+        if (trackpadPointer) {
+          const rect = trackpadSurface.getBoundingClientRect();
+          trackpadPointer.style.left = `${touch.clientX - rect.left}px`;
+          trackpadPointer.style.top = `${touch.clientY - rect.top}px`;
+        }
+
+        if (!moveTimer) {
+          moveTimer = setTimeout(flushMove, 16);
+        }
+      } else if (e.touches.length === 2) {
+        // 2-finger scroll
+        const curY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const deltaY = curY - lastY;
+        lastY = curY;
+        totalMoved += Math.abs(deltaY);
+
+        if (Math.abs(deltaY) > 8) {
+          const dir = deltaY > 0 ? 'up' : 'down';
+          sendTrackpadEvent({ type: 'scroll', direction: dir, steps: 2 });
+        }
+      }
+    }, { passive: false });
+
+    trackpadSurface.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (moveTimer) {
+        clearTimeout(moveTimer);
+        flushMove();
+      }
+      if (trackpadPointer) trackpadPointer.style.display = 'none';
+
+      const touchDuration = Date.now() - touchStartTime;
+
+      if (e.changedTouches.length === 1 && totalMoved < 10 && touchDuration < 300) {
+        const now = Date.now();
+        if (now - lastTapTime < 320) {
+          // Double tap -> double click
+          sendTrackpadEvent({ type: 'click', button: 'double' });
+          lastTapTime = 0;
+        } else {
+          lastTapTime = now;
+          setTimeout(() => {
+            if (lastTapTime === now) {
+              sendTrackpadEvent({ type: 'click', button: '1' });
+            }
+          }, 320);
+        }
+      } else if (e.changedTouches.length === 2 && totalMoved < 12 && touchDuration < 350) {
+        // 2-finger tap -> right click
+        sendTrackpadEvent({ type: 'click', button: '3' });
+      }
+    }, { passive: false });
+
+    trackpadSurface.addEventListener('touchcancel', () => {
+      if (moveTimer) clearTimeout(moveTimer);
+      if (trackpadPointer) trackpadPointer.style.display = 'none';
+    });
+  }
+
+  // Viewfinder live desktop snapshot in trackpad tab
+  async function refreshTrackpadViewfinder() {
+    if (!trackpadScreenImg) return;
+    try {
+      const res = await fetch(`/api/screen?w=800&q=50&token=${encodeURIComponent(authToken)}&t=${Date.now()}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        trackpadScreenImg.src = URL.createObjectURL(blob);
+      }
+    } catch (e) {}
+  }
+
+  if (btnToggleTrackpadViewfinder && trackpadViewfinderBox) {
+    btnToggleTrackpadViewfinder.addEventListener('click', () => {
+      const isHidden = trackpadViewfinderBox.style.display === 'none';
+      trackpadViewfinderBox.style.display = isHidden ? 'block' : 'none';
+      btnToggleTrackpadViewfinder.textContent = isHidden ? '🙈 Hide PC Desktop Viewfinder' : '📸 Show / Hide PC Desktop Viewfinder';
+      if (isHidden) refreshTrackpadViewfinder();
+    });
+  }
+
+  if (btnRefreshTrackpadScreen) {
+    btnRefreshTrackpadScreen.addEventListener('click', refreshTrackpadViewfinder);
+  }
+
+  if (trackpadScreenImg) {
+    trackpadScreenImg.addEventListener('click', (e) => {
+      const rect = trackpadScreenImg.getBoundingClientRect();
+      const normX = (e.clientX - rect.left) / rect.width;
+      const normY = (e.clientY - rect.top) / rect.height;
+      if (normX >= 0 && normX <= 1 && normY >= 0 && normY <= 1) {
+        sendTrackpadEvent({ type: 'click', button: '1', norm_x: normX, norm_y: normY });
+        showToast('Clicked PC Screen');
+        setTimeout(refreshTrackpadViewfinder, 300);
+      }
+    });
+  }
 
   // Initialization
   function initAppConnections() {
