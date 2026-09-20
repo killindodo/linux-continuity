@@ -101,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
         pane.classList.add('active');
         if (target === 'terminal' && window.fitAddon) {
           stopScreenLoop();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
+          if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           setTimeout(() => {
             window.fitAddon.fit();
             if (termWs && termWs.readyState === WebSocket.OPEN) {
@@ -112,10 +114,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }, 150);
         } else if (target === 'screen') {
-          startScreenLoop();
-          refreshScreenFrame();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
+          if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
+          if (typeof activeScreenSubmode === 'undefined' || activeScreenSubmode === 'mirror') {
+            startScreenLoop();
+            refreshScreenFrame();
+          }
+        } else if (target === 'media') {
+          stopScreenLoop();
+          if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
+          if (typeof loadMediaStatus === 'function') loadMediaStatus();
+          if (typeof startMediaLoop === 'function') startMediaLoop();
+        } else if (target === 'vitals') {
+          stopScreenLoop();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
+          if (typeof loadSystemStats === 'function') loadSystemStats();
+          if (typeof startVitalsLoop === 'function') startVitalsLoop();
         } else {
           stopScreenLoop();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
+          if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           if (target === 'files') {
             loadFiles();
           }
@@ -885,6 +903,457 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnRefreshTunnelStatus) {
     btnRefreshTunnelStatus.addEventListener('click', loadTunnelStatus);
+  }
+
+  // ----------------------------------------------------
+  // PWA Service Worker Registration
+  // ----------------------------------------------------
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  // ----------------------------------------------------
+  // Submode: Screen Mirror vs Virtual Trackpad
+  // ----------------------------------------------------
+  window.activeScreenSubmode = 'mirror';
+  const btnSubModeMirror = document.getElementById('btnSubModeMirror');
+  const btnSubModeTrackpad = document.getElementById('btnSubModeTrackpad');
+  const screenMirrorSubpanel = document.getElementById('screenMirrorSubpanel');
+  const trackpadSubpanel = document.getElementById('trackpadSubpanel');
+
+  if (btnSubModeMirror && btnSubModeTrackpad) {
+    btnSubModeMirror.addEventListener('click', () => {
+      window.activeScreenSubmode = 'mirror';
+      btnSubModeMirror.classList.add('active');
+      btnSubModeTrackpad.classList.remove('active');
+      if (screenMirrorSubpanel) screenMirrorSubpanel.style.display = 'block';
+      if (trackpadSubpanel) trackpadSubpanel.style.display = 'none';
+      startScreenLoop();
+      refreshScreenFrame();
+    });
+
+    btnSubModeTrackpad.addEventListener('click', () => {
+      window.activeScreenSubmode = 'trackpad';
+      btnSubModeTrackpad.classList.add('active');
+      btnSubModeMirror.classList.remove('active');
+      if (screenMirrorSubpanel) screenMirrorSubpanel.style.display = 'none';
+      if (trackpadSubpanel) trackpadSubpanel.style.display = 'block';
+      stopScreenLoop();
+    });
+  }
+
+  // Trackpad Touch Gestures
+  const trackpadSurface = document.getElementById('trackpadSurface');
+  let tpTouchStartX = 0;
+  let tpTouchStartY = 0;
+  let tpLastX = 0;
+  let tpLastY = 0;
+  let tpTouchStartTime = 0;
+  let tpHasMoved = false;
+  let tpThrottled = false;
+
+  if (trackpadSurface) {
+    trackpadSurface.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      tpTouchStartTime = Date.now();
+      tpHasMoved = false;
+
+      if (e.touches.length === 1) {
+        tpTouchStartX = e.touches[0].clientX;
+        tpTouchStartY = e.touches[0].clientY;
+        tpLastX = tpTouchStartX;
+        tpLastY = tpTouchStartY;
+      } else if (e.touches.length === 2) {
+        tpTouchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        tpLastY = tpTouchStartY;
+      }
+    }, { passive: false });
+
+    trackpadSurface.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1) {
+        const curX = e.touches[0].clientX;
+        const curY = e.touches[0].clientY;
+        const dx = (curX - tpLastX) * 1.5;
+        const dy = (curY - tpLastY) * 1.5;
+
+        if (Math.abs(curX - tpTouchStartX) > 4 || Math.abs(curY - tpTouchStartY) > 4) {
+          tpHasMoved = true;
+        }
+
+        tpLastX = curX;
+        tpLastY = curY;
+
+        if (!tpThrottled && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) {
+          tpThrottled = true;
+          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'move', dx: Math.round(dx), dy: Math.round(dy) })
+          }).finally(() => {
+            setTimeout(() => { tpThrottled = false; }, 20);
+          });
+        }
+      } else if (e.touches.length === 2) {
+        tpHasMoved = true;
+        const curY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const diffY = curY - tpLastY;
+        tpLastY = curY;
+
+        if (!tpThrottled && Math.abs(diffY) > 8) {
+          tpThrottled = true;
+          const direction = diffY > 0 ? 'up' : 'down';
+          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'scroll', direction, steps: 2 })
+          }).finally(() => {
+            setTimeout(() => { tpThrottled = false; }, 40);
+          });
+        }
+      }
+    }, { passive: false });
+
+    trackpadSurface.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      const duration = Date.now() - tpTouchStartTime;
+      if (!tpHasMoved && duration < 300) {
+        if (e.changedTouches.length === 1) {
+          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'click', button: '1' })
+          });
+          showToast('Left Click');
+        }
+      }
+    }, { passive: false });
+  }
+
+  // Trackpad Buttons
+  const btnTpLeft = document.getElementById('btnTrackpadLeft');
+  const btnTpMiddle = document.getElementById('btnTrackpadMiddle');
+  const btnTpRight = document.getElementById('btnTrackpadRight');
+
+  if (btnTpLeft) {
+    btnTpLeft.addEventListener('click', () => {
+      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'click', button: '1' })
+      });
+      showToast('Left Click');
+    });
+  }
+  if (btnTpMiddle) {
+    btnTpMiddle.addEventListener('click', () => {
+      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'click', button: '2' })
+      });
+      showToast('Middle Click');
+    });
+  }
+  if (btnTpRight) {
+    btnTpRight.addEventListener('click', () => {
+      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'click', button: '3' })
+      });
+      showToast('Right Click');
+    });
+  }
+
+  // ----------------------------------------------------
+  // Media & Volume Controller
+  // ----------------------------------------------------
+  let mediaPollInterval = null;
+  const mediaPlayerName = document.getElementById('mediaPlayerName');
+  const mediaTitle = document.getElementById('mediaTitle');
+  const mediaArtist = document.getElementById('mediaArtist');
+  const mediaAlbum = document.getElementById('mediaAlbum');
+  const mediaStatusBadge = document.getElementById('mediaStatusBadge');
+  const mediaArtImg = document.getElementById('mediaArtImg');
+  const mediaArtPlaceholder = document.getElementById('mediaArtPlaceholder');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const volPercentBadge = document.getElementById('volPercentBadge');
+  const btnToggleMute = document.getElementById('btnToggleMute');
+
+  async function loadMediaStatus() {
+    try {
+      const res = await fetch(`/api/media/status?token=${encodeURIComponent(authToken)}`);
+      const data = await res.json();
+
+      // Volume info
+      if (data.volume) {
+        if (volumeSlider && document.activeElement !== volumeSlider) {
+          volumeSlider.value = data.volume.volume;
+        }
+        if (volPercentBadge) {
+          volPercentBadge.textContent = `${data.volume.volume}%`;
+        }
+        if (btnToggleMute) {
+          btnToggleMute.textContent = data.volume.is_muted ? '🔇' : '🔊';
+        }
+      }
+
+      // Media info
+      const active = data.media?.active;
+      if (active) {
+        if (mediaPlayerName) mediaPlayerName.textContent = active.name || 'Player';
+        if (mediaTitle) mediaTitle.textContent = active.title || 'Unknown Title';
+        if (mediaArtist) mediaArtist.textContent = active.artist || 'Unknown Artist';
+        if (mediaAlbum) mediaAlbum.textContent = active.album || '';
+
+        const st = (active.status || 'idle').toLowerCase();
+        if (mediaStatusBadge) {
+          mediaStatusBadge.textContent = st;
+          mediaStatusBadge.className = `status-pill status-${st}`;
+        }
+
+        if (active.art_url && active.art_url.startsWith('http')) {
+          if (mediaArtImg) {
+            mediaArtImg.src = active.art_url;
+            mediaArtImg.style.display = 'block';
+          }
+          if (mediaArtPlaceholder) mediaArtPlaceholder.style.display = 'none';
+        } else {
+          if (mediaArtImg) mediaArtImg.style.display = 'none';
+          if (mediaArtPlaceholder) mediaArtPlaceholder.style.display = 'block';
+        }
+      } else {
+        if (mediaPlayerName) mediaPlayerName.textContent = 'No Player';
+        if (mediaTitle) mediaTitle.textContent = 'No media active';
+        if (mediaArtist) mediaArtist.textContent = 'Launch Spotify, VLC, YouTube or Firefox';
+        if (mediaAlbum) mediaAlbum.textContent = '';
+        if (mediaStatusBadge) {
+          mediaStatusBadge.textContent = 'Idle';
+          mediaStatusBadge.className = 'status-pill status-idle';
+        }
+        if (mediaArtImg) mediaArtImg.style.display = 'none';
+        if (mediaArtPlaceholder) mediaArtPlaceholder.style.display = 'block';
+      }
+    } catch (e) {}
+  }
+
+  function startMediaLoop() {
+    stopMediaLoop();
+    mediaPollInterval = setInterval(loadMediaStatus, 2500);
+  }
+
+  function stopMediaLoop() {
+    if (mediaPollInterval) {
+      clearInterval(mediaPollInterval);
+      mediaPollInterval = null;
+    }
+  }
+
+  async function sendMediaAction(action) {
+    try {
+      await fetch(`/api/media/control?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      setTimeout(loadMediaStatus, 300);
+    } catch (e) {
+      showToast('Media action failed');
+    }
+  }
+
+  const btnMediaPlayPause = document.getElementById('btnMediaPlayPause');
+  const btnMediaNext = document.getElementById('btnMediaNext');
+  const btnMediaPrev = document.getElementById('btnMediaPrev');
+  const btnMediaStop = document.getElementById('btnMediaStop');
+
+  if (btnMediaPlayPause) btnMediaPlayPause.addEventListener('click', () => sendMediaAction('PlayPause'));
+  if (btnMediaNext) btnMediaNext.addEventListener('click', () => sendMediaAction('Next'));
+  if (btnMediaPrev) btnMediaPrev.addEventListener('click', () => sendMediaAction('Previous'));
+  if (btnMediaStop) btnMediaStop.addEventListener('click', () => sendMediaAction('Stop'));
+
+  let volDebounce = null;
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', () => {
+      const val = parseInt(volumeSlider.value);
+      if (volPercentBadge) volPercentBadge.textContent = `${val}%`;
+      if (volDebounce) clearTimeout(volDebounce);
+      volDebounce = setTimeout(async () => {
+        await fetch(`/api/media/control?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_volume', volume: val })
+        });
+      }, 100);
+    });
+  }
+
+  if (btnToggleMute) {
+    btnToggleMute.addEventListener('click', async () => {
+      await fetch(`/api/media/control?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_mute' })
+      });
+      loadMediaStatus();
+    });
+  }
+
+  document.querySelectorAll('.btn-chip[data-vol]').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const val = parseInt(chip.getAttribute('data-vol'));
+      if (volumeSlider) volumeSlider.value = val;
+      if (volPercentBadge) volPercentBadge.textContent = `${val}%`;
+      await fetch(`/api/media/control?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_volume', volume: val })
+      });
+      loadMediaStatus();
+    });
+  });
+
+  // ----------------------------------------------------
+  // System Vitals Monitor
+  // ----------------------------------------------------
+  let vitalsPollInterval = null;
+  const vitalsUptime = document.getElementById('vitalsUptime');
+  const btnRefreshVitals = document.getElementById('btnRefreshVitals');
+
+  async function loadSystemStats() {
+    try {
+      const res = await fetch(`/api/system/stats?token=${encodeURIComponent(authToken)}`);
+      const data = await res.json();
+      if (!data.cpu) return;
+
+      if (vitalsUptime) vitalsUptime.textContent = `Uptime: ${data.uptime || '--'}`;
+
+      const cpuVal = document.getElementById('vitalCpuVal');
+      const cpuBar = document.getElementById('vitalCpuBar');
+      const cpuCores = document.getElementById('vitalCpuCores');
+      const cpuFreq = document.getElementById('vitalCpuFreq');
+      if (cpuVal) cpuVal.textContent = `${data.cpu.percent}%`;
+      if (cpuBar) cpuBar.style.width = `${Math.min(100, data.cpu.percent)}%`;
+      if (cpuCores) cpuCores.textContent = `${data.cpu.cores} Cores`;
+      if (cpuFreq) cpuFreq.textContent = `${data.cpu.freq_mhz || '--'} MHz`;
+
+      const ramVal = document.getElementById('vitalRamVal');
+      const ramBar = document.getElementById('vitalRamBar');
+      const ramDetail = document.getElementById('vitalRamDetail');
+      if (ramVal) ramVal.textContent = `${data.memory.percent}%`;
+      if (ramBar) ramBar.style.width = `${Math.min(100, data.memory.percent)}%`;
+      if (ramDetail) ramDetail.textContent = `${data.memory.used_mb} / ${data.memory.total_mb} MB`;
+
+      const diskVal = document.getElementById('vitalDiskVal');
+      const diskBar = document.getElementById('vitalDiskBar');
+      const diskDetail = document.getElementById('vitalDiskDetail');
+      if (diskVal) diskVal.textContent = `${data.disk.percent}%`;
+      if (diskBar) diskBar.style.width = `${Math.min(100, data.disk.percent)}%`;
+      if (diskDetail) diskDetail.textContent = `${data.disk.used_gb} / ${data.disk.total_gb} GB`;
+
+      const tempCpu = document.getElementById('vitalTempCpu');
+      const tempGpu = document.getElementById('vitalTempGpu');
+      const tempBar = document.getElementById('vitalTempBar');
+      const cVal = data.cpu.temp_c || data.temps?.cpu || '--';
+      if (tempCpu) tempCpu.textContent = `${cVal}°C`;
+      if (tempGpu) tempGpu.textContent = `GPU: ${data.temps?.gpu || '--'}°C`;
+      if (tempBar && typeof cVal === 'number') {
+        tempBar.style.width = `${Math.min(100, (cVal / 100) * 100)}%`;
+      }
+
+      const battVal = document.getElementById('vitalBattVal');
+      const battBar = document.getElementById('vitalBattBar');
+      const battStatus = document.getElementById('vitalBattStatus');
+      if (data.battery?.has_battery) {
+        if (battVal) battVal.textContent = `${data.battery.percent}%`;
+        if (battBar) battBar.style.width = `${data.battery.percent}%`;
+        if (battStatus) battStatus.textContent = data.battery.plugged ? '⚡ Charging / Plugged' : '🔋 On Battery';
+      }
+    } catch (e) {}
+  }
+
+  function startVitalsLoop() {
+    stopVitalsLoop();
+    vitalsPollInterval = setInterval(loadSystemStats, 2500);
+  }
+
+  function stopVitalsLoop() {
+    if (vitalsPollInterval) {
+      clearInterval(vitalsPollInterval);
+      vitalsPollInterval = null;
+    }
+  }
+
+  if (btnRefreshVitals) btnRefreshVitals.addEventListener('click', loadSystemStats);
+
+  // ----------------------------------------------------
+  // 1-Click App Launcher & Power Actions
+  // ----------------------------------------------------
+  document.querySelectorAll('[data-app]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const appName = btn.getAttribute('data-app');
+      try {
+        const res = await fetch(`/api/app/launch?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app: appName })
+        });
+        const data = await res.json();
+        showToast(data.message || `Launched ${appName}`);
+      } catch (e) {
+        showToast('App launch failed');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-power]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const action = btn.getAttribute('data-power');
+      if (action === 'reboot' && !confirm('Are you sure you want to REBOOT your Linux PC?')) return;
+      if (action === 'poweroff' && !confirm('Are you sure you want to SHUT DOWN your Linux PC?')) return;
+
+      try {
+        const res = await fetch(`/api/power?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action })
+        });
+        const data = await res.json();
+        showToast(data.message || `Executed ${action}`);
+      } catch (e) {
+        showToast('Power action failed');
+      }
+    });
+  });
+
+  // Push Desktop Notification
+  const btnSendNotif = document.getElementById('btnSendNotification');
+  const notifTitleInput = document.getElementById('notifTitleInput');
+  const notifMsgInput = document.getElementById('notifMsgInput');
+
+  if (btnSendNotif) {
+    btnSendNotif.addEventListener('click', async () => {
+      const title = notifTitleInput ? notifTitleInput.value.trim() : '';
+      const message = notifMsgInput ? notifMsgInput.value.trim() : '';
+      if (!title && !message) {
+        showToast('Please enter a title or message');
+        return;
+      }
+      try {
+        await fetch(`/api/notification?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, message })
+        });
+        showToast('✓ Notification pushed to PC!');
+        if (notifTitleInput) notifTitleInput.value = '';
+        if (notifMsgInput) notifMsgInput.value = '';
+      } catch (e) {
+        showToast('Failed to send notification');
+      }
+    });
   }
 
   // Initialization

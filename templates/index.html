@@ -4,7 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Linux Continuity • killindodo</title>
+  
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
   <link rel="icon" type="image/png" href="/static/icons/icon.png">
+  <link rel="apple-touch-icon" href="/static/icons/icon.png">
   <link rel="stylesheet" href="/static/css/xterm.css">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -25,10 +34,12 @@
     <!-- Navigation Tabs -->
     <nav class="tabs-nav">
       <button class="tab-btn active" data-tab="terminal">📟 Terminal</button>
-      <button class="tab-btn" data-tab="screen">🖥️ Screen Mirror</button>
+      <button class="tab-btn" data-tab="screen">🖥️ Screen</button>
+      <button class="tab-btn" data-tab="media">🎵 Media</button>
+      <button class="tab-btn" data-tab="vitals">📊 Vitals</button>
       <button class="tab-btn" data-tab="clipboard">📋 Clipboard</button>
-      <button class="tab-btn" data-tab="files">📁 AirDrop Files</button>
-      <button class="tab-btn" data-tab="system">⚡ Controls</button>
+      <button class="tab-btn" data-tab="files">📁 AirDrop</button>
+      <button class="tab-btn" data-tab="system">⚡ Deck</button>
     </nav>
 
     <!-- Main Content Panels -->
@@ -58,34 +69,24 @@
             <button class="kbtn" data-key="\x03">Ctrl+C</button>
             <button class="kbtn" data-key="\x04">Ctrl+D</button>
             <button class="kbtn" data-key="\x1a">Ctrl+Z</button>
-            <button class="kbtn" data-key="|">|</button>
             <button class="kbtn" data-key="~">~</button>
-            <button class="kbtn" data-key="/">/</button>
+            <button class="kbtn" data-key="|">|</button>
             <button class="kbtn" data-key="-">-</button>
-            <button class="kbtn" data-key="_">_</button>
-            <button class="kbtn" data-key="\x1b[A">↑</button>
-            <button class="kbtn" data-key="\x1b[B">↓</button>
-            <button class="kbtn" data-key="\x1b[D">←</button>
-            <button class="kbtn" data-key="\x1b[C">→</button>
-            <button class="kbtn" data-key="\x1b[5~">PgUp</button>
-            <button class="kbtn" data-key="\x1b[6~">PgDn</button>
-            <button class="kbtn action" id="btnMainTermFullscreen" title="Toggle Fullscreen">⛶</button>
-            <a href="/terminal" target="_blank" class="kbtn action" title="Open Dedicated Standalone Terminal" style="text-decoration:none;">↗ Popout</a>
-            <button class="kbtn action" id="btnReconnectTerm">Reconnect</button>
-            <button class="kbtn action" id="btnClearTerm">Clear</button>
+            <button class="kbtn" data-key="/">/</button>
+            <button class="kbtn" data-key="\x1b[A">▲</button>
+            <button class="kbtn" data-key="\x1b[B">▼</button>
+            <button class="kbtn" data-key="\x1b[D">◀</button>
+            <button class="kbtn" data-key="\x1b[C">▶</button>
           </div>
 
-          <!-- Collapsible Running Processes Drawer -->
-          <div id="procsDrawer" class="procs-drawer" style="display: none;">
-            <div class="drawer-header">
-              <h4>🖥️ Active Desktop Terminals & Processes</h4>
-              <div class="drawer-btns">
-                <button id="btnRefreshProcs" class="btn-xs">🔄 Refresh</button>
-                <button id="btnCloseProcs" class="btn-xs">✕ Close</button>
-              </div>
+          <!-- Active Desktop Terminals (PTS) Inspector Drawer -->
+          <div id="ptsDrawer" class="pts-drawer" style="display: none;">
+            <div class="pts-header">
+              <h4>Active Desktop Terminals (PTS Processes)</h4>
+              <button id="btnClosePts" class="btn-sm">✕ Close</button>
             </div>
-            <div class="procs-content" id="procsContent">
-              <div class="procs-loading">Loading running desktop processes...</div>
+            <div id="ptsList" class="pts-list">
+              <div class="pts-loading">Scanning running terminals...</div>
             </div>
           </div>
 
@@ -93,34 +94,60 @@
         </div>
       </section>
 
-      <!-- 2. Live Desktop Screen Mirror Panel -->
+      <!-- 2. Screen Mirror & Virtual Trackpad Panel -->
       <section id="tab-screen" class="tab-pane">
         <div class="screen-wrapper">
-          <!-- Screen Control Toolbar -->
-          <div class="screen-toolbar">
-            <div class="st-left">
-              <label for="screenRefreshRate">Rate:</label>
-              <select id="screenRefreshRate">
-                <option value="1000">Live 1s</option>
-                <option value="2000" selected>2s</option>
-                <option value="4000">4s</option>
-                <option value="0">Manual</option>
-              </select>
-              <button id="btnScreenManualRefresh" class="kbtn action">🔄 Refresh</button>
-            </div>
-            <div class="st-right">
-              <span class="click-mode-label">Tap:</span>
-              <button class="click-mode-btn active" data-btn="1" id="modeLeft">Left</button>
-              <button class="click-mode-btn" data-btn="3" id="modeRight">Right</button>
-              <button class="click-mode-btn" data-btn="double" id="modeDouble">Double</button>
+          <!-- Mode Switcher: Mirror vs Trackpad -->
+          <div class="screen-mode-bar">
+            <div class="mode-tabs">
+              <button id="btnSubModeMirror" class="submode-btn active">🖥️ Screen View</button>
+              <button id="btnSubModeTrackpad" class="submode-btn">🖱️ Virtual Trackpad</button>
             </div>
           </div>
 
-          <!-- Interactive Screen Display -->
-          <div class="screen-viewport" id="screenViewport">
-            <div class="screen-canvas-box" id="screenCanvasBox">
-              <img id="screenImg" src="/static/icons/icon.png" alt="Desktop Screen" draggable="false">
-              <div id="screenRipple" class="screen-ripple"></div>
+          <!-- Screen Mirror View Sub-panel -->
+          <div id="screenMirrorSubpanel">
+            <div class="screen-toolbar">
+              <div class="st-left">
+                <label for="screenRefreshRate">Rate:</label>
+                <select id="screenRefreshRate">
+                  <option value="1000">Live 1s</option>
+                  <option value="2000" selected>2s</option>
+                  <option value="4000">4s</option>
+                  <option value="0">Manual</option>
+                </select>
+                <button id="btnScreenManualRefresh" class="kbtn action">🔄 Refresh</button>
+              </div>
+              <div class="st-right">
+                <span class="click-mode-label">Tap:</span>
+                <button class="click-mode-btn active" data-btn="1" id="modeLeft">Left</button>
+                <button class="click-mode-btn" data-btn="3" id="modeRight">Right</button>
+                <button class="click-mode-btn" data-btn="double" id="modeDouble">Double</button>
+              </div>
+            </div>
+
+            <div class="screen-viewport" id="screenViewport">
+              <div class="screen-canvas-box" id="screenCanvasBox">
+                <img id="screenImg" src="/static/icons/icon.png" alt="Desktop Screen" draggable="false">
+                <div id="screenRipple" class="screen-ripple"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Virtual Trackpad Sub-panel -->
+          <div id="trackpadSubpanel" style="display: none;">
+            <div class="trackpad-surface" id="trackpadSurface">
+              <div class="trackpad-hint">
+                <span>Touch & Drag to Move Cursor</span>
+                <small>1-Finger Tap = Left Click • 2-Finger Tap = Right Click • 2-Finger Drag = Scroll</small>
+              </div>
+              <div class="trackpad-pointer" id="trackpadPointer"></div>
+            </div>
+            
+            <div class="trackpad-buttons">
+              <button id="btnTrackpadLeft" class="btn-tp">Left Click</button>
+              <button id="btnTrackpadMiddle" class="btn-tp">Middle</button>
+              <button id="btnTrackpadRight" class="btn-tp">Right Click</button>
             </div>
           </div>
 
@@ -137,14 +164,153 @@
               <button class="kbtn s-key" data-skey="space">Space</button>
             </div>
             <div class="screen-type-box">
-              <input type="text" id="screenTextInput" placeholder="Type text to send to focused PC window...">
+              <input type="text" id="screenTextInput" placeholder="Type text to send to active PC window...">
               <button id="btnScreenSendText" class="btn-primary-sm">Send</button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 3. Clipboard Panel -->
+      <!-- 3. Media & Audio Panel -->
+      <section id="tab-media" class="tab-pane">
+        <!-- Now Playing Card -->
+        <div class="card media-card">
+          <div class="card-header">
+            <h3>Now Playing (MPRIS)</h3>
+            <span id="mediaPlayerName" class="badge-sub">No Player</span>
+          </div>
+
+          <div class="media-body">
+            <div class="media-art-box">
+              <div id="mediaArtPlaceholder" class="media-art-icon">🎵</div>
+              <img id="mediaArtImg" src="" alt="Album Art" style="display:none;">
+            </div>
+            <div class="media-details">
+              <h4 id="mediaTitle" class="media-title">No media active</h4>
+              <p id="mediaArtist" class="media-artist">Launch Spotify, VLC, YouTube or Firefox</p>
+              <span id="mediaAlbum" class="media-album"></span>
+              <span id="mediaStatusBadge" class="status-pill status-idle">Idle</span>
+            </div>
+          </div>
+
+          <!-- Playback Controls -->
+          <div class="media-controls">
+            <button class="media-btn" id="btnMediaPrev" title="Previous Track">⏮️</button>
+            <button class="media-btn main-play" id="btnMediaPlayPause" title="Play/Pause">⏯️</button>
+            <button class="media-btn" id="btnMediaNext" title="Next Track">⏭️</button>
+            <button class="media-btn" id="btnMediaStop" title="Stop">⏹️</button>
+          </div>
+        </div>
+
+        <!-- Master Volume Control Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Master Audio Volume</h3>
+            <span id="volPercentBadge" class="badge-highlight">--%</span>
+          </div>
+          
+          <div class="vol-control-box">
+            <button id="btnToggleMute" class="btn-mute" title="Toggle Mute">🔊</button>
+            <input type="range" id="volumeSlider" min="0" max="150" value="50" class="slider-vol">
+          </div>
+
+          <div class="vol-presets">
+            <button class="btn-chip" data-vol="0">0%</button>
+            <button class="btn-chip" data-vol="25">25%</button>
+            <button class="btn-chip" data-vol="50">50%</button>
+            <button class="btn-chip" data-vol="75">75%</button>
+            <button class="btn-chip" data-vol="100">100%</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. System Vitals & Hardware Monitor Panel -->
+      <section id="tab-vitals" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>🖥️ System Vitals</h3>
+            <div class="vitals-header-actions">
+              <span id="vitalsUptime" class="badge-sub">Uptime: --</span>
+              <button id="btnRefreshVitals" class="btn-sm">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <!-- Vitals Grid -->
+          <div class="vitals-grid">
+            <!-- CPU Card -->
+            <div class="vital-tile">
+              <div class="vt-top">
+                <span class="vt-title">CPU Load</span>
+                <span id="vitalCpuVal" class="vt-val">--%</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="vitalCpuBar" class="progress-bar-fill" style="width: 0%;"></div>
+              </div>
+              <div class="vt-sub">
+                <span id="vitalCpuCores">-- Cores</span> • <span id="vitalCpuFreq">-- MHz</span>
+              </div>
+            </div>
+
+            <!-- Memory Card -->
+            <div class="vital-tile">
+              <div class="vt-top">
+                <span class="vt-title">Memory (RAM)</span>
+                <span id="vitalRamVal" class="vt-val">--%</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="vitalRamBar" class="progress-bar-fill fill-blue" style="width: 0%;"></div>
+              </div>
+              <div class="vt-sub">
+                <span id="vitalRamDetail">-- / -- MB</span>
+              </div>
+            </div>
+
+            <!-- Disk Card -->
+            <div class="vital-tile">
+              <div class="vt-top">
+                <span class="vt-title">Storage (Root /)</span>
+                <span id="vitalDiskVal" class="vt-val">--%</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="vitalDiskBar" class="progress-bar-fill fill-purple" style="width: 0%;"></div>
+              </div>
+              <div class="vt-sub">
+                <span id="vitalDiskDetail">-- / -- GB</span>
+              </div>
+            </div>
+
+            <!-- Thermal / Temperature Card -->
+            <div class="vital-tile">
+              <div class="vt-top">
+                <span class="vt-title">Temperatures</span>
+                <span id="vitalTempCpu" class="vt-val">--°C</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="vitalTempBar" class="progress-bar-fill fill-orange" style="width: 0%;"></div>
+              </div>
+              <div class="vt-sub">
+                <span>CPU Temp</span> • <span id="vitalTempGpu">GPU: --°C</span>
+              </div>
+            </div>
+
+            <!-- Battery / Power Card -->
+            <div class="vital-tile" id="vitalBatteryTile">
+              <div class="vt-top">
+                <span class="vt-title">Power & Battery</span>
+                <span id="vitalBattVal" class="vt-val">--%</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="vitalBattBar" class="progress-bar-fill fill-green" style="width: 0%;"></div>
+              </div>
+              <div class="vt-sub">
+                <span id="vitalBattStatus">AC Connected</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Clipboard Panel -->
       <section id="tab-clipboard" class="tab-pane">
         <div class="card">
           <div class="card-header">
@@ -165,75 +331,118 @@
         </div>
       </section>
 
-      <!-- 4. AirDrop Files Panel -->
+      <!-- 6. AirDrop Files Panel -->
       <section id="tab-files" class="tab-pane">
         <div class="card">
           <div class="card-header">
-            <h3>Send File to Linux PC</h3>
+            <h3>Send Files to Linux (~/Downloads)</h3>
           </div>
           <div class="drop-zone" id="dropZone">
+            <span class="drop-icon">📤</span>
+            <p>Tap here or drop files to send to PC</p>
             <input type="file" id="fileInput" multiple style="display:none;">
-            <div class="drop-content">
-              <span class="drop-icon">📤</span>
-              <p>Tap to choose files or photos</p>
-              <span class="drop-sub">Saves straight to ~/Downloads on Linux</span>
-            </div>
           </div>
-          <div id="uploadProgress" class="progress-bar-container" style="display:none;">
-            <div id="progressBar" class="progress-bar"></div>
+          <div id="uploadProgress" class="upload-progress" style="display:none;">
+            <div class="progress-bar">
+              <div id="progressBarFill" class="progress-fill"></div>
+            </div>
+            <span id="uploadStatusText">Uploading...</span>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Download from PC (Recent Files)</h3>
+            <h3>Recent PC Files</h3>
             <button id="btnRefreshFiles" class="btn-sm">Refresh</button>
           </div>
-          <ul id="fileList" class="file-list">
-            <li class="file-item empty">Loading files...</li>
-          </ul>
+          <div id="pcFilesList" class="files-list">
+            <div class="file-loading">Loading recent files...</div>
+          </div>
         </div>
       </section>
 
-      <!-- 5. System Controls Panel -->
+      <!-- 7. Deck, Power & System Panel -->
       <section id="tab-system" class="tab-pane">
+        <!-- 1-Click App Launcher Deck -->
         <div class="card">
           <div class="card-header">
-            <h3>Quick Actions</h3>
+            <h3>🚀 1-Click App Launcher</h3>
           </div>
           <div class="action-grid">
-            <button class="action-card" data-action="launch_shared_terminal">
+            <button class="action-card" data-app="terminal">
               <span class="act-icon">💻</span>
-              <span class="act-title">Open Terminal on PC</span>
+              <span class="act-title">Terminal</span>
             </button>
-            <button class="action-card" data-action="lock_screen">
-              <span class="act-icon">🔒</span>
-              <span class="act-title">Lock Screen</span>
-            </button>
-            <button class="action-card" data-action="notify">
-              <span class="act-icon">🔔</span>
-              <span class="act-title">Ping Desktop</span>
-            </button>
-            <button class="action-card" data-action="vol_mute">
-              <span class="act-icon">🔇</span>
-              <span class="act-title">Mute Audio</span>
-            </button>
-            <button class="action-card" data-action="open_downloads">
+            <button class="action-card" data-app="files">
               <span class="act-icon">📂</span>
-              <span class="act-title">Open Downloads</span>
+              <span class="act-title">File Manager</span>
+            </button>
+            <button class="action-card" data-app="browser">
+              <span class="act-icon">🌐</span>
+              <span class="act-title">Browser</span>
+            </button>
+            <button class="action-card" data-app="editor">
+              <span class="act-icon">📝</span>
+              <span class="act-title">VS Code</span>
+            </button>
+            <button class="action-card" data-app="settings">
+              <span class="act-icon">⚙️</span>
+              <span class="act-title">Settings</span>
             </button>
           </div>
         </div>
 
+        <!-- Power & Display Controls -->
         <div class="card">
           <div class="card-header">
-            <h3>🌐 Remote Connectivity (Away from Desk)</h3>
+            <h3>⚡ Power & Display</h3>
+          </div>
+          <div class="action-grid">
+            <button class="action-card" data-power="lock">
+              <span class="act-icon">🔒</span>
+              <span class="act-title">Lock Screen</span>
+            </button>
+            <button class="action-card" data-power="display_off">
+              <span class="act-icon">🌙</span>
+              <span class="act-title">Screen Off</span>
+            </button>
+            <button class="action-card" data-power="suspend">
+              <span class="act-icon">💤</span>
+              <span class="act-title">Sleep PC</span>
+            </button>
+            <button class="action-card danger" data-power="reboot">
+              <span class="act-icon">🔄</span>
+              <span class="act-title">Reboot</span>
+            </button>
+            <button class="action-card danger" data-power="poweroff">
+              <span class="act-icon">🔌</span>
+              <span class="act-title">Shut Down</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Send Desktop Notification -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🔔 Push Notification to PC</h3>
+          </div>
+          <div class="notif-form">
+            <input type="text" id="notifTitleInput" placeholder="Notification Title (e.g. Call Alert)">
+            <input type="text" id="notifMsgInput" placeholder="Message details...">
+            <button id="btnSendNotification" class="btn-primary">Send Desktop Notification</button>
+          </div>
+        </div>
+
+        <!-- Remote Connectivity (Cloudflare & Tailscale) -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🌐 Remote Connectivity</h3>
             <button id="btnRefreshTunnelStatus" class="btn-sm">Refresh</button>
           </div>
           
           <div class="remote-tunnel-box">
             <div class="remote-row">
-              <span class="remote-label">Cloudflare Public HTTPS:</span>
+              <span class="remote-label">Cloudflare HTTPS:</span>
               <span class="remote-val" id="remoteTunnelStatus">Inactive</span>
             </div>
             <div class="remote-actions-row">
@@ -248,16 +457,17 @@
               <span class="remote-val" id="remoteTailscaleIp">...</span>
             </div>
             <div class="remote-row" style="margin-top: 6px;">
-              <span class="remote-label">SSH Remote Command (Termux / JuiceSSH):</span>
+              <span class="remote-label">SSH Remote Command:</span>
             </div>
             <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
             <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
           </div>
         </div>
 
+        <!-- System Information -->
         <div class="card">
           <div class="card-header">
-            <h3>System Information</h3>
+            <h3>Host Info</h3>
           </div>
           <div class="sys-info-grid">
             <div class="sys-item">

@@ -841,3 +841,375 @@ body {
   user-select: all;
   margin-top: 4px;
 }
+
+/* Screen Submode Bar & Trackpad */
+.screen-mode-bar {
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px;
+  background-color: #12151e;
+  border-bottom: 1px solid #232838;
+}
+
+.mode-tabs {
+  display: flex;
+  background-color: #1a1e2b;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.submode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submode-btn.active {
+  background-color: var(--accent);
+  color: #fff;
+}
+
+.trackpad-surface {
+  height: 280px;
+  background: radial-gradient(circle at center, #1b2030 0%, #0d1017 100%);
+  border: 2px dashed #2f374c;
+  border-radius: 12px;
+  margin: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.trackpad-hint {
+  text-align: center;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.trackpad-hint span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #c5cde0;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.trackpad-hint small {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.trackpad-buttons {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 10px 10px;
+}
+
+.btn-tp {
+  flex: 1;
+  background-color: #1b202e;
+  color: #fff;
+  border: 1px solid #30394f;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-tp:active {
+  background-color: var(--accent);
+}
+
+/* Media & Audio Player Card */
+.media-card {
+  border-left: 4px solid #1db954;
+}
+
+.badge-sub {
+  font-size: 10px;
+  color: #00d2ff;
+  background-color: #162234;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.media-body {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 10px 0 16px 0;
+}
+
+.media-art-box {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  background-color: #161b26;
+  border: 1px solid #283144;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.media-art-icon {
+  font-size: 32px;
+}
+
+.media-art-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.media-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.media-artist {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-album {
+  font-size: 11px;
+  color: #64748b;
+  display: block;
+}
+
+.status-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.status-playing {
+  background-color: #14532d;
+  color: #4ade80;
+}
+
+.status-paused {
+  background-color: #713f12;
+  color: #fde047;
+}
+
+.status-idle {
+  background-color: #1e293b;
+  color: #94a3b8;
+}
+
+.media-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #1e2434;
+}
+
+.media-btn {
+  background-color: #1e2535;
+  border: 1px solid #323d54;
+  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.media-btn.main-play {
+  width: 54px;
+  height: 54px;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-size: 20px;
+}
+
+.media-btn:active {
+  transform: scale(0.92);
+}
+
+/* Volume Slider */
+.vol-control-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.btn-mute {
+  background-color: #1e2535;
+  border: 1px solid #333d52;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.slider-vol {
+  flex: 1;
+  accent-color: #00d2ff;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.vol-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-chip {
+  flex: 1;
+  background-color: #161b26;
+  border: 1px solid #283144;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-chip:active {
+  background-color: var(--accent);
+  color: #fff;
+}
+
+/* System Vitals */
+.vitals-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.vital-tile {
+  background-color: #10131c;
+  border: 1px solid #232838;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.vt-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.vt-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.vt-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00d2ff;
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background-color: #1e2434;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #00d2ff;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.fill-blue { background-color: #3b82f6; }
+.fill-purple { background-color: #a855f7; }
+.fill-orange { background-color: #f97316; }
+.fill-green { background-color: #22c55e; }
+
+.vt-sub {
+  font-size: 10px;
+  color: #64748b;
+}
+
+/* App launcher & power actions */
+.action-card.danger {
+  border-color: #5c1d1d;
+}
+
+.action-card.danger:hover {
+  border-color: #ef4444;
+  background-color: #291417;
+}
+
+/* Push notification form */
+.notif-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notif-form input {
+  background-color: #0c0e14;
+  border: 1px solid #282f42;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+}
+
+.notif-form input:focus {
+  border-color: var(--accent);
+}
+

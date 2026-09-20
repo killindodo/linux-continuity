@@ -30,7 +30,24 @@ from core.screen_mirror import (
     capture_screen_jpeg,
     click_screen,
     send_keystroke,
-    type_text
+    type_text,
+    trackpad_move,
+    trackpad_scroll,
+    mouse_press,
+    mouse_release
+)
+from core.media_controller import (
+    get_volume_info,
+    set_volume,
+    toggle_mute,
+    get_mpris_status,
+    mpris_command
+)
+from core.system_monitor import get_system_stats
+from core.power_manager import (
+    execute_power_action,
+    launch_application,
+    send_desktop_notification
 )
 from core.tunnel import (
     tunnel_mgr,
@@ -427,15 +444,143 @@ class InfoHandler(tornado.web.RequestHandler):
             "tunnel_active": tunnel_mgr.is_running,
             "tunnel_url": tunnel_mgr.public_url,
             "author": "killindodo",
-            "version": "1.2.0",
+            "version": "1.3.0",
             "require_pin": auth_mgr.require_pin
         }))
+
+
+class SystemStatsHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(get_system_stats()))
+
+
+class MediaStatusHandler(tornado.web.RequestHandler):
+    def get(self):
+        vol = get_volume_info()
+        mpris = get_mpris_status()
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"volume": vol, "media": mpris}))
+
+
+class MediaControlHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            action = data.get("action")
+            if action == "set_volume":
+                vol = data.get("volume", 50)
+                res = set_volume(vol)
+            elif action == "toggle_mute":
+                res = toggle_mute()
+            elif action in ("PlayPause", "Next", "Previous", "Stop", "Play", "Pause"):
+                player_id = data.get("player")
+                res = mpris_command(action, player_id)
+            else:
+                res = {"status": "error", "message": "Unknown media action"}
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class PowerHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            action = data.get("action")
+            res = execute_power_action(action)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class AppLaunchHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            app_name = data.get("app")
+            res = launch_application(app_name)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class NotificationHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            title = data.get("title", "Android Notification")
+            message = data.get("message", "")
+            urgency = data.get("urgency", "normal")
+            res = send_desktop_notification(title, message, urgency)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class TrackpadHandler(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            event_type = data.get("type", "move")
+            if event_type == "move":
+                dx = data.get("dx", 0)
+                dy = data.get("dy", 0)
+                res = trackpad_move(dx, dy)
+            elif event_type == "scroll":
+                direction = data.get("direction", "down")
+                steps = data.get("steps", 1)
+                res = trackpad_scroll(direction, steps)
+            elif event_type == "mousedown":
+                btn = str(data.get("button", "1"))
+                res = mouse_press(btn)
+            elif event_type == "mouseup":
+                btn = str(data.get("button", "1"))
+                res = mouse_release(btn)
+            elif event_type == "click":
+                btn = str(data.get("button", "1"))
+                norm_x = data.get("norm_x", 0.5)
+                norm_y = data.get("norm_y", 0.5)
+                res = click_screen(norm_x, norm_y, btn)
+            else:
+                res = {"status": "error", "message": "Unknown trackpad event"}
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class ManifestHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.set_header("Content-Type", "application/manifest+json")
+        manifest_path = os.path.join(PROJECT_ROOT, "static", "manifest.json")
+        with open(manifest_path, "r") as f:
+            self.write(f.read())
+
+
+class ServiceWorkerHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.set_header("Content-Type", "application/javascript")
+        sw_path = os.path.join(PROJECT_ROOT, "static", "sw.js")
+        with open(sw_path, "r") as f:
+            self.write(f.read())
 
 
 def make_app():
     return tornado.web.Application([
         (r"/", IndexHandler),
         (r"/terminal", TerminalStandaloneHandler),
+        (r"/manifest.json", ManifestHandler),
+        (r"/sw.js", ServiceWorkerHandler),
         (r"/ws/terminal", TerminalWebSocket),
         (r"/ws/clipboard", ClipboardWebSocket),
         (r"/api/auth", AuthHandler),
@@ -447,6 +592,13 @@ def make_app():
         (r"/api/screen", ScreenCaptureHandler),
         (r"/api/screen/click", ScreenClickHandler),
         (r"/api/screen/key", ScreenKeyHandler),
+        (r"/api/trackpad", TrackpadHandler),
+        (r"/api/system/stats", SystemStatsHandler),
+        (r"/api/media/status", MediaStatusHandler),
+        (r"/api/media/control", MediaControlHandler),
+        (r"/api/power", PowerHandler),
+        (r"/api/app/launch", AppLaunchHandler),
+        (r"/api/notification", NotificationHandler),
         (r"/api/action", ActionHandler),
         (r"/api/info", InfoHandler),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": os.path.join(PROJECT_ROOT, "static")}),

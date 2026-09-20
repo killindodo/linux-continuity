@@ -164,3 +164,79 @@ def type_text(text: str) -> Dict[str, Any]:
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+def trackpad_move(dx: int, dy: int) -> Dict[str, Any]:
+    """Moves mouse cursor relatively by (dx, dy) pixels."""
+    if not shutil.which("xdotool"):
+        return {"status": "error", "message": "xdotool is not installed"}
+
+    # Limit delta per packet to prevent erratic jumps
+    dx = max(-300, min(300, int(dx)))
+    dy = max(-300, min(300, int(dy)))
+
+    try:
+        subprocess.run(
+            ["xdotool", "mousemove_relative", "--", str(dx), str(dy)],
+            check=True,
+            timeout=1,
+            env=get_display_env()
+        )
+        return {"status": "ok", "dx": dx, "dy": dy}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def trackpad_scroll(direction: str, steps: int = 1) -> Dict[str, Any]:
+    """Simulates mouse wheel scrolling ('up' = button 4, 'down' = button 5)."""
+    if not shutil.which("xdotool"):
+        return {"status": "error", "message": "xdotool is not installed"}
+
+    btn = "4" if direction.lower() == "up" else "5"
+    steps = max(1, min(10, int(steps)))
+
+    try:
+        subprocess.run(
+            ["xdotool", "click", "--repeat", str(steps), btn],
+            check=True,
+            timeout=1,
+            env=get_display_env()
+        )
+        return {"status": "ok", "direction": direction, "steps": steps}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def mouse_press(button: str = "1") -> Dict[str, Any]:
+    """Simulates holding a mouse button down."""
+    if not shutil.which("xdotool"):
+        return {"status": "error", "message": "xdotool is not installed"}
+    btn = str(button) if str(button) in ["1", "2", "3"] else "1"
+    try:
+        subprocess.run(
+            ["xdotool", "mousedown", btn],
+            check=True,
+            timeout=1,
+            env=get_display_env()
+        )
+        return {"status": "ok", "action": "mousedown", "button": btn}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def mouse_release(button: str = "1") -> Dict[str, Any]:
+    """Simulates releasing a held mouse button."""
+    if not shutil.which("xdotool"):
+        return {"status": "error", "message": "xdotool is not installed"}
+    btn = str(button) if str(button) in ["1", "2", "3"] else "1"
+    try:
+        subprocess.run(
+            ["xdotool", "mouseup", btn],
+            check=True,
+            timeout=1,
+            env=get_display_env()
+        )
+        return {"status": "ok", "action": "mouseup", "button": btn}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+

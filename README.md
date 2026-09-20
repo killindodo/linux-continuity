@@ -30,11 +30,28 @@ This project delivers all of this with **zero Android app installations required
   - **Running Desktop Terminals (PTS) Inspector**: view all active terminal processes running across `/dev/pts/*` on your machine (`zsh`, `python`, `gcc`, `htop`, etc.).
   - **1-Click Launch on PC**: open a terminal window on your PC screen attached to the shared session with a single tap from either desktop or phone.
   - Mobile touch helper keyboard with `ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, and arrow keys.
-- 🖥️ **Live Desktop Screen Mirror & Remote Control**:
-  - Live low-latency desktop screen capture streamed directly to your mobile browser.
-  - Selectable refresh rates: Live (1s), 2s, 4s, or Manual refresh.
-  - **Interactive Touch-to-Click**: Tap anywhere on the phone screen to simulate native mouse clicks on the PC desktop (supports Left Click, Right Click, and Double Click).
-  - **Remote Keystroke & Typing Controller**: Quick keys (`Enter`, `Bksp`, `Tab`, `Esc`, `Ctrl+C`, `Super / Windows Key`, `Alt+Tab`, `Space`) plus a direct text input field to type into any active desktop window.
+- 🖱️ **Haptic Virtual Trackpad & Live Screen Mirror**:
+  - Switch between Live Desktop Screen Mirror and high-response **Virtual Trackpad**.
+  - 1-finger relative cursor movement with smooth acceleration.
+  - 1-finger tap for Left Click, 2-finger tap for Right Click, 2-finger drag for vertical scrolling.
+  - Dedicated Left, Middle, and Right Click buttons.
+  - Remote Keystrokes (`Enter`, `Bksp`, `Tab`, `Esc`, `Ctrl+C`, `Super / Windows Key`, `Alt+Tab`, `Space`) + direct text input to PC.
+- 🎵 **Media Player & Master Audio Control**:
+  - Live **MPRIS** integration: automatically detects active playback from Spotify, VLC, YouTube, Firefox, Chrome, and MPV.
+  - Displays real-time track title, artist, album, status badge, and album artwork.
+  - Remote playback controls: Play/Pause, Next Track, Previous Track, Stop.
+  - Master system volume slider (0% to 150%) with 1-tap presets and instant Mute toggle.
+- 📊 **Real-time System & Hardware Vitals**:
+  - Live CPU Load %, core count, CPU clock frequency, and CPU package temperatures (°C).
+  - Memory (RAM) and Swap utilization meters.
+  - Root storage (`/`) space and free GB display.
+  - Thermal sensors: CPU & GPU temperatures.
+  - Battery percentage and AC power charging indicator.
+  - System uptime counter and 1m/5m/15m load averages.
+- 🚀 **1-Click App Launcher & Power Deck**:
+  - Launch PC applications straight from mobile: Terminal, File Manager (`~`), Web Browser, VS Code, and Settings.
+  - System Power Management: Lock Screen, Turn Off Display (`xset dpms`), Sleep/Suspend, Reboot, and Power Off (with safety confirmations).
+  - Push Desktop Notification: send custom push alerts from phone to Linux desktop via `notify-send`.
 - 📋 **Universal Shared Clipboard**:
   - Live bidirectional clipboard synchronization.
   - Text copied on PC appears instantly on phone with 1-tap "Copy to Phone".
@@ -43,12 +60,12 @@ This project delivers all of this with **zero Android app installations required
   - Send photos, documents, and videos from your phone directly to `~/Downloads` on Linux.
   - Triggers native desktop notifications on arrival.
   - Browse and download recent PC files from Linux to Android with one click.
-- ⚡ **Desktop Companion & Mobile Controls**:
-  - Quick actions from mobile: Lock screen, desktop audio mute, ping PC, open terminal on PC.
-  - Desktop companion app with auto-generated QR code for instant camera pairing.
-  - System tray icon with quick links and downloads folder shortcut.
-- 🔒 **Security PIN Protection**:
+- 📱 **Progressive Web App (PWA) & Offline Caching**:
+  - Web App Manifest allows installing directly to Android home screen like a native app.
+  - Built-in Service Worker for offline asset caching and instant launches.
+- 🔒 **Security PIN Protection & Remote Tunnels**:
   - 4-digit PIN system protects your PC from unauthorized access on local Wi-Fi or public tunnels.
+  - Integrated Cloudflare HTTPS Tunnels and Tailscale Mesh VPN support for away-from-desk access.
 
 ---
 
