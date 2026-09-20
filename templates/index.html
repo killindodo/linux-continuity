@@ -373,32 +373,67 @@
 
       <!-- 7. Deck, Power & System Panel -->
       <section id="tab-system" class="tab-pane">
-        <!-- 1-Click App Launcher Deck -->
+        <!-- Quick Launch Deck -->
         <div class="card">
           <div class="card-header">
-            <h3>🚀 1-Click App Launcher</h3>
+            <h3>🚀 Quick Actions</h3>
           </div>
           <div class="action-grid">
             <button class="action-card" data-app="terminal">
               <span class="act-icon">💻</span>
               <span class="act-title">Terminal</span>
             </button>
-            <button class="action-card" data-app="files">
-              <span class="act-icon">📂</span>
-              <span class="act-title">File Manager</span>
+            <button class="action-card" data-app="camera">
+              <span class="act-icon">📷</span>
+              <span class="act-title">PC Camera</span>
             </button>
             <button class="action-card" data-app="browser">
               <span class="act-icon">🌐</span>
               <span class="act-title">Browser</span>
             </button>
-            <button class="action-card" data-app="editor">
-              <span class="act-icon">📝</span>
-              <span class="act-title">VS Code</span>
-            </button>
             <button class="action-card" data-app="settings">
               <span class="act-icon">⚙️</span>
               <span class="act-title">Settings</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Remote Camera & Microphone Monitor -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📷 PC Camera & 🎙️ Mic Stream</h3>
+            <span id="camStatusBadge" class="status-pill status-idle">Ready</span>
+          </div>
+
+          <!-- Camera Live Feed / Snapshot Section -->
+          <div class="cam-preview-box" id="camPreviewBox">
+            <img id="camImg" src="/static/icons/icon.png" alt="PC Webcam" draggable="false">
+            <div id="camOverlay" class="cam-overlay">
+              <span id="camOverlayText">Tap "Start Live Camera" or "Take Photo"</span>
+            </div>
+          </div>
+
+          <div class="cam-controls-row">
+            <button id="btnToggleCamStream" class="kbtn action">▶ Start Live Camera</button>
+            <button id="btnCamSnapshot" class="kbtn action">📸 Take Photo</button>
+            <button id="btnOpenPcCamApp" class="kbtn action">🖥️ Open on PC</button>
+          </div>
+
+          <div class="mic-stream-box" style="margin-top: 14px; border-top: 1px solid var(--card-border); padding-top: 14px;">
+            <div class="mic-status-row">
+              <div class="mic-info">
+                <span class="mic-title" style="font-weight: 600; font-size: 13px; color: var(--text-main);">🎙️ PC Microphone Audio</span>
+                <p id="micStatusText" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Stream live audio from Linux PC to phone</p>
+              </div>
+              <div id="micWaveform" class="mic-waveform" style="display:none;">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+
+            <div class="mic-actions-row" style="margin-top: 10px;">
+              <button id="btnToggleMicListen" class="btn-primary" style="width: 100%;">🎧 Listen to PC Mic</button>
+            </div>
+            <audio id="micAudioPlayer" preload="none" style="display:none;"></audio>
           </div>
         </div>
 
@@ -512,6 +547,6 @@
 
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
-  <script src="/static/js/app.js?v=2.1"></script>
+  <script src="/static/js/app.js?v=2.2"></script>
 </body>
 </html>

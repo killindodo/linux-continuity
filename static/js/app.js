@@ -1437,6 +1437,120 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ----------------------------------------------------
+  // Camera Preview & Live Microphone Stream
+  // ----------------------------------------------------
+  const camImg = document.getElementById('camImg');
+  const camOverlayText = document.getElementById('camOverlayText');
+  const camStatusBadge = document.getElementById('camStatusBadge');
+  const btnToggleCamStream = document.getElementById('btnToggleCamStream');
+  const btnCamSnapshot = document.getElementById('btnCamSnapshot');
+  const btnOpenPcCamApp = document.getElementById('btnOpenPcCamApp');
+
+  const btnToggleMicListen = document.getElementById('btnToggleMicListen');
+  const micAudioPlayer = document.getElementById('micAudioPlayer');
+  const micStatusText = document.getElementById('micStatusText');
+  const micWaveform = document.getElementById('micWaveform');
+
+  let camStreamTimer = null;
+  let isListeningMic = false;
+
+  function fetchCameraSnapshot() {
+    if (!camImg) return;
+    const img = new Image();
+    const ts = Date.now();
+    img.src = `/api/camera/frame?token=${encodeURIComponent(authToken)}&t=${ts}&w=640&h=360`;
+    img.onload = () => {
+      camImg.src = img.src;
+      if (camOverlayText) camOverlayText.textContent = `Live • ${new Date().toLocaleTimeString()}`;
+      if (camStatusBadge) {
+        camStatusBadge.textContent = 'Active';
+        camStatusBadge.className = 'status-pill status-active';
+      }
+    };
+    img.onerror = () => {
+      if (camOverlayText) camOverlayText.textContent = 'Webcam unavailable or in use';
+    };
+  }
+
+  function toggleCameraStream() {
+    if (camStreamTimer) {
+      clearInterval(camStreamTimer);
+      camStreamTimer = null;
+      if (btnToggleCamStream) btnToggleCamStream.textContent = '▶ Start Live Camera';
+      if (camStatusBadge) {
+        camStatusBadge.textContent = 'Paused';
+        camStatusBadge.className = 'status-pill status-idle';
+      }
+    } else {
+      fetchCameraSnapshot();
+      camStreamTimer = setInterval(fetchCameraSnapshot, 1500);
+      if (btnToggleCamStream) btnToggleCamStream.textContent = '⏸ Pause Live Camera';
+    }
+  }
+
+  if (btnToggleCamStream) btnToggleCamStream.addEventListener('click', toggleCameraStream);
+
+  if (btnCamSnapshot) {
+    btnCamSnapshot.addEventListener('click', () => {
+      fetchCameraSnapshot();
+      showToast('📸 Photo captured from PC webcam!');
+    });
+  }
+
+  if (btnOpenPcCamApp) {
+    btnOpenPcCamApp.addEventListener('click', async () => {
+      try {
+        const res = await fetch(`/api/app/launch?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app: 'camera' })
+        });
+        const data = await res.json();
+        showToast(data.message || 'Opened camera on PC');
+      } catch (e) {
+        showToast('Could not open camera on PC');
+      }
+    });
+  }
+
+  function toggleMicListen() {
+    if (!isListeningMic) {
+      isListeningMic = true;
+      if (btnToggleMicListen) {
+        btnToggleMicListen.textContent = '⏹ Stop Listening';
+        btnToggleMicListen.style.backgroundColor = '#ff3b30';
+      }
+      if (micStatusText) micStatusText.textContent = '🔴 Listening live to PC microphone...';
+      if (micWaveform) micWaveform.style.display = 'flex';
+
+      if (micAudioPlayer) {
+        micAudioPlayer.src = `/api/mic/stream?token=${encodeURIComponent(authToken)}&t=${Date.now()}`;
+        micAudioPlayer.play().catch(e => {
+          console.warn('Audio autoplay prevented:', e);
+          showToast('Tap again to enable audio playback');
+        });
+      }
+      showToast('🎙️ Streaming PC microphone audio');
+    } else {
+      isListeningMic = false;
+      if (btnToggleMicListen) {
+        btnToggleMicListen.textContent = '🎧 Listen to PC Mic';
+        btnToggleMicListen.style.backgroundColor = '';
+      }
+      if (micStatusText) micStatusText.textContent = 'Microphone monitor disconnected';
+      if (micWaveform) micWaveform.style.display = 'none';
+
+      if (micAudioPlayer) {
+        micAudioPlayer.pause();
+        micAudioPlayer.src = '';
+      }
+      showToast('Microphone stream stopped');
+    }
+  }
+
+  if (btnToggleMicListen) btnToggleMicListen.addEventListener('click', toggleMicListen);
+
   // Initialization
   function initAppConnections() {
     loadSessions();

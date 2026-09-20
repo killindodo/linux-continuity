@@ -57,6 +57,7 @@ from core.tunnel import (
 from core.clipboard_sync import ClipboardSync
 from core.file_manager import FileManager
 from core.auth import AuthManager
+from core.av_capture import av_mgr
 
 # Globals
 file_mgr = FileManager()
@@ -436,6 +437,95 @@ class ActionHandler(tornado.web.RequestHandler):
             self.write(json.dumps({"status": "error", "message": str(e)}))
 
 
+class CameraFrameHandler(tornado.web.RequestHandler):
+    """Serves live camera frame or snapshot from the PC webcam."""
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write("Unauthorized")
+            return
+
+        w = int(self.get_argument("w", 640))
+        h = int(self.get_argument("h", 360))
+        q = int(self.get_argument("q", 3))
+
+        frame = av_mgr.capture_frame(width=w, height=h, quality=q)
+        if frame:
+            self.set_header("Content-Type", "image/jpeg")
+            self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.write(frame)
+        else:
+            self.set_status(503)
+            self.write("Webcam unavailable or in use")
+
+
+class CameraStatusHandler(tornado.web.RequestHandler):
+    """Returns webcam and microphone availability status."""
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"status": "ok", **av_mgr.get_status()}))
+
+
+class MicStreamHandler(tornado.web.RequestHandler):
+    """Streams live audio from PC microphone to mobile browser via MP3."""
+    async def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write("Unauthorized")
+            return
+
+        self.set_header("Content-Type", "audio/mpeg")
+        self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.set_header("Connection", "keep-alive")
+
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-f", "pulse",
+            "-i", "default",
+            "-c:a", "libmp3lame",
+            "-b:a", "96k",
+            "-f", "mp3",
+            "-"
+        ]
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=2048
+        )
+
+        try:
+            loop = tornado.ioloop.IOLoop.current()
+            while True:
+                chunk = await loop.run_in_executor(None, proc.stdout.read, 2048)
+                if not chunk:
+                    break
+                self.write(chunk)
+                await self.flush()
+        except (tornado.iostream.StreamClosedError, Exception):
+            pass
+        finally:
+            try:
+                proc.terminate()
+                proc.wait(timeout=1.0)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+
 class InfoHandler(tornado.web.RequestHandler):
     def get(self):
         self.set_header("Content-Type", "application/json")
@@ -609,6 +699,9 @@ def make_app():
         (r"/api/notification", NotificationHandler),
         (r"/api/action", ActionHandler),
         (r"/api/info", InfoHandler),
+        (r"/api/camera/frame", CameraFrameHandler),
+        (r"/api/camera/status", CameraStatusHandler),
+        (r"/api/mic/stream", MicStreamHandler),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": os.path.join(PROJECT_ROOT, "static")}),
     ], template_path=os.path.join(PROJECT_ROOT, "templates"))
 

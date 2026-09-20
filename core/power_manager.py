@@ -80,6 +80,7 @@ def launch_application(app_name: str) -> Dict[str, Any]:
     app_commands = {
         "terminal": ["x-terminal-emulator", "xfce4-terminal", "gnome-terminal", "alacritty", "kitty", "konsole", "xterm"],
         "files": ["xdg-open", os.path.expanduser("~")],
+        "camera": ["cheese", "guvcview", "kamoso", "camorama"],
         "browser": ["x-www-browser", "firefox", "google-chrome", "chromium", "brave-browser"],
         "editor": ["code", "subl", "gedit", "mousepad", "kate", "nano"],
         "calculator": ["galculator", "gnome-calculator", "kcalc", "xcalc"],
@@ -88,6 +89,12 @@ def launch_application(app_name: str) -> Dict[str, Any]:
 
     if app_name not in app_commands:
         return {"status": "error", "message": f"Unknown application '{app_name}'"}
+
+    if app_name == "camera":
+        from .av_capture import av_mgr
+        if av_mgr.open_camera_on_desktop():
+            return {"status": "ok", "message": "Opened Camera on PC"}
+        return {"status": "error", "message": "Could not open camera on PC"}
 
     candidates = app_commands[app_name]
     if app_name == "files":
