@@ -330,13 +330,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.getElementById('btnReconnectTerm').addEventListener('click', () => {
-    connectTerminal(currentSession);
-  });
+  const btnReconnectTerm = document.getElementById('btnReconnectTerm');
+  if (btnReconnectTerm) {
+    btnReconnectTerm.addEventListener('click', () => {
+      connectTerminal(currentSession);
+    });
+  }
 
-  document.getElementById('btnClearTerm').addEventListener('click', () => {
-    if (term) term.clear();
-  });
+  const btnClearTerm = document.getElementById('btnClearTerm');
+  if (btnClearTerm) {
+    btnClearTerm.addEventListener('click', () => {
+      if (term) term.clear();
+    });
+  }
 
   const btnMainTermFullscreen = document.getElementById('btnMainTermFullscreen');
   if (btnMainTermFullscreen) {
@@ -357,108 +363,109 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNewSession = document.getElementById('btnNewSession');
   const btnLaunchPcTerm = document.getElementById('btnLaunchPcTerm');
   const btnToggleProcs = document.getElementById('btnToggleProcs');
-  const procsDrawer = document.getElementById('procsDrawer');
-  const procsContent = document.getElementById('procsContent');
+  const procsDrawer = document.getElementById('ptsDrawer');
+  const procsContent = document.getElementById('ptsList');
   const btnRefreshProcs = document.getElementById('btnRefreshProcs');
-  const btnCloseProcs = document.getElementById('btnCloseProcs');
+  const btnCloseProcs = document.getElementById('btnClosePts');
 
   async function loadSessions() {
     try {
       const res = await fetch(`/api/terminals?token=${encodeURIComponent(authToken)}`);
       const data = await res.json();
-      if (data.status === 'ok' && data.tmux_sessions) {
+      if (data.status === 'ok' && termSessionSelect) {
+        const sessions = data.sessions || [];
         termSessionSelect.innerHTML = '';
-        let found = false;
-        data.tmux_sessions.forEach(s => {
+        sessions.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.name;
-          opt.textContent = `${s.name} (${s.windows} win)`;
-          if (s.name === currentSession) {
-            opt.selected = true;
-            found = true;
-          }
+          opt.textContent = `${s.name} (${s.windows} win${s.attached ? ' • attached' : ''})`;
+          if (s.name === currentSession) opt.selected = true;
           termSessionSelect.appendChild(opt);
         });
-
-        if (!found) {
-          const opt = document.createElement('option');
-          opt.value = currentSession;
-          opt.textContent = currentSession;
-          opt.selected = true;
-          termSessionSelect.appendChild(opt);
-        }
       }
     } catch (e) {}
   }
 
-  termSessionSelect.addEventListener('change', () => {
-    const selected = termSessionSelect.value;
-    if (selected && selected !== currentSession) {
-      currentSession = selected;
-      connectTerminal(currentSession);
-      showToast(`Switched to session: ${currentSession}`);
-    }
-  });
-
-  btnNewSession.addEventListener('click', async () => {
-    const name = prompt('Enter a name for the new terminal session:');
-    if (!name || !name.trim()) return;
-    const cleanName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!cleanName) return;
-
-    try {
-      const res = await fetch(`/api/terminals?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', name: cleanName })
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        currentSession = cleanName;
-        await loadSessions();
-        connectTerminal(cleanName);
-        showToast(`✓ Created session: ${cleanName}`);
+  if (termSessionSelect) {
+    termSessionSelect.addEventListener('change', () => {
+      const selected = termSessionSelect.value;
+      if (selected && selected !== currentSession) {
+        currentSession = selected;
+        connectTerminal(currentSession);
+        showToast(`Switched to session: ${currentSession}`);
       }
-    } catch (e) {
-      showToast('Failed to create session');
-    }
-  });
+    });
+  }
 
-  btnLaunchPcTerm.addEventListener('click', async () => {
-    try {
-      const res = await fetch(`/api/terminals?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'launch_pc', name: currentSession })
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast(`⚡ Terminal launched on PC desktop (Session: ${currentSession})`);
-      } else {
-        showToast('Could not launch terminal emulator on PC');
+  if (btnNewSession) {
+    btnNewSession.addEventListener('click', async () => {
+      const name = prompt('Enter a name for the new terminal session:');
+      if (!name || !name.trim()) return;
+      const cleanName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!cleanName) return;
+
+      try {
+        const res = await fetch(`/api/terminals?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create', name: cleanName })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          currentSession = cleanName;
+          await loadSessions();
+          connectTerminal(cleanName);
+          showToast(`✓ Created session: ${cleanName}`);
+        }
+      } catch (e) {
+        showToast('Failed to create session');
       }
-    } catch (e) {
-      showToast('Request failed');
-    }
-  });
+    });
+  }
+
+  if (btnLaunchPcTerm) {
+    btnLaunchPcTerm.addEventListener('click', async () => {
+      try {
+        const res = await fetch(`/api/terminals?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'launch_pc', name: currentSession })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`⚡ Terminal launched on PC desktop (Session: ${currentSession})`);
+        } else {
+          showToast('Could not launch terminal emulator on PC');
+        }
+      } catch (e) {
+        showToast('Request failed');
+      }
+    });
+  }
 
   // Running Desktop Terminals (PTS) Inspector
-  btnToggleProcs.addEventListener('click', () => {
-    if (procsDrawer.style.display === 'none') {
-      procsDrawer.style.display = 'block';
-      loadRunningProcesses();
-    } else {
+  if (btnToggleProcs && procsDrawer) {
+    btnToggleProcs.addEventListener('click', () => {
+      if (procsDrawer.style.display === 'none') {
+        procsDrawer.style.display = 'block';
+        loadRunningProcesses();
+      } else {
+        procsDrawer.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnCloseProcs && procsDrawer) {
+    btnCloseProcs.addEventListener('click', () => {
       procsDrawer.style.display = 'none';
-    }
-  });
+    });
+  }
 
-  btnCloseProcs.addEventListener('click', () => {
-    procsDrawer.style.display = 'none';
-  });
-
-  btnRefreshProcs.addEventListener('click', () => {
-    loadRunningProcesses();
-  });
+  if (btnRefreshProcs) {
+    btnRefreshProcs.addEventListener('click', () => {
+      loadRunningProcesses();
+    });
+  }
 
   async function loadRunningProcesses() {
     procsContent.innerHTML = '<div class="procs-loading">Inspecting running processes...</div>';
@@ -550,16 +557,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  screenRefreshRate.addEventListener('change', () => {
-    const pane = document.getElementById('tab-screen');
-    if (pane && pane.classList.contains('active')) {
-      startScreenLoop();
-    }
-  });
+  if (screenRefreshRate) {
+    screenRefreshRate.addEventListener('change', () => {
+      const pane = document.getElementById('tab-screen');
+      if (pane && pane.classList.contains('active')) {
+        startScreenLoop();
+      }
+    });
+  }
 
-  btnScreenManualRefresh.addEventListener('click', () => {
-    refreshScreenFrame();
-  });
+  if (btnScreenManualRefresh) {
+    btnScreenManualRefresh.addEventListener('click', () => {
+      refreshScreenFrame();
+    });
+  }
 
   // Click Mode Selection
   const clickModeBtns = document.querySelectorAll('.click-mode-btn');
@@ -572,7 +583,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Interactive Touch-to-Click on Screen Canvas
-  screenCanvasBox.addEventListener('click', async (e) => {
+  if (screenCanvasBox) {
+    screenCanvasBox.addEventListener('click', async (e) => {
     if (!screenImg || !screenImg.naturalWidth) return;
 
     const rect = screenImg.getBoundingClientRect();
@@ -608,7 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Quick visual refresh after click
       setTimeout(refreshScreenFrame, 150);
     } catch (err) {}
-  });
+    });
+  }
 
   // Screen Virtual Keyboard Keys
   document.querySelectorAll('.s-key[data-skey]').forEach(btn => {
@@ -627,6 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Send Typed Text to Active PC Window
   async function sendScreenText() {
+    if (!screenTextInput) return;
     const text = screenTextInput.value;
     if (!text) return;
     try {
@@ -643,10 +657,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnScreenSendText.addEventListener('click', sendScreenText);
-  screenTextInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendScreenText();
-  });
+  if (btnScreenSendText) btnScreenSendText.addEventListener('click', sendScreenText);
+  if (screenTextInput) {
+    screenTextInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendScreenText();
+    });
+  }
 
   // ----------------------------------------------------
   // 3. Universal Shared Clipboard
@@ -668,12 +684,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = JSON.parse(evt.data);
         if (data.type === 'clipboard') {
           currentPcText = data.text || '';
-          if (currentPcText.trim()) {
-            pcClipBox.textContent = currentPcText;
-            pcClipBox.classList.remove('placeholder');
-          } else {
-            pcClipBox.textContent = '(PC Clipboard is currently empty)';
-            pcClipBox.classList.add('placeholder');
+          if (pcClipBox) {
+            if (currentPcText.trim()) {
+              pcClipBox.textContent = currentPcText;
+              pcClipBox.classList.remove('placeholder');
+            } else {
+              pcClipBox.textContent = '(PC Clipboard is currently empty)';
+              pcClipBox.classList.add('placeholder');
+            }
           }
         }
       } catch (e) {}
@@ -684,76 +702,87 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  btnCopyFromPc.addEventListener('click', async () => {
-    if (!currentPcText) {
-      showToast('Clipboard is empty');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(currentPcText);
-      showToast('✓ Copied to Phone Clipboard!');
-    } catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = currentPcText;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      showToast('✓ Copied to Phone Clipboard!');
-    }
-  });
+  if (btnCopyFromPc) {
+    btnCopyFromPc.addEventListener('click', async () => {
+      if (!currentPcText) {
+        showToast('Clipboard is empty');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(currentPcText);
+        showToast('✓ Copied to Phone Clipboard!');
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = currentPcText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('✓ Copied to Phone Clipboard!');
+      }
+    });
+  }
 
-  btnSendToPc.addEventListener('click', () => {
-    const text = phoneClipInput.value;
-    if (!text) {
-      showToast('Please type or paste text first');
-      return;
-    }
-    if (clipWs && clipWs.readyState === WebSocket.OPEN) {
-      clipWs.send(JSON.stringify({
-        type: 'set_clipboard',
-        text: text
-      }));
-      showToast('⚡ Sent to Linux PC Clipboard!');
-      phoneClipInput.value = '';
-    } else {
-      showToast('Clipboard service not connected');
-    }
-  });
+  if (btnSendToPc) {
+    btnSendToPc.addEventListener('click', () => {
+      if (!phoneClipInput) return;
+      const text = phoneClipInput.value;
+      if (!text) {
+        showToast('Please type or paste text first');
+        return;
+      }
+      if (clipWs && clipWs.readyState === WebSocket.OPEN) {
+        clipWs.send(JSON.stringify({
+          type: 'set_clipboard',
+          text: text
+        }));
+        showToast('⚡ Sent to Linux PC Clipboard!');
+        phoneClipInput.value = '';
+      } else {
+        showToast('Clipboard service not connected');
+      }
+    });
+  }
 
   // ----------------------------------------------------
   // 4. AirDrop File Drop & Downloads
   // ----------------------------------------------------
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
-  const fileList = document.getElementById('fileList');
+  const fileList = document.getElementById('pcFilesList');
   const uploadProgContainer = document.getElementById('uploadProgress');
-  const progressBar = document.getElementById('progressBar');
+  const progressBar = document.getElementById('progressBarFill');
 
-  dropZone.addEventListener('click', () => fileInput.click());
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('click', () => fileInput.click());
+  }
 
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
+  if (dropZone) {
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
 
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('dragover');
-  });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
 
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-      uploadFiles(e.dataTransfer.files);
-    }
-  });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        uploadFiles(e.dataTransfer.files);
+      }
+    });
+  }
 
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) {
-      uploadFiles(fileInput.files);
-    }
-  });
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        uploadFiles(fileInput.files);
+      }
+    });
+  }
 
   function uploadFiles(files) {
     const formData = new FormData();
@@ -761,33 +790,33 @@ document.addEventListener('DOMContentLoaded', () => {
       formData.append('files', files[i]);
     }
 
-    uploadProgContainer.style.display = 'block';
-    progressBar.style.width = '10%';
+    if (uploadProgContainer) uploadProgContainer.style.display = 'block';
+    if (progressBar) progressBar.style.width = '10%';
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload', true);
+    xhr.open('POST', `/api/upload?token=${encodeURIComponent(authToken)}`, true);
 
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
+      if (e.lengthComputable && progressBar) {
         const pct = Math.round((e.loaded / e.total) * 100);
         progressBar.style.width = `${pct}%`;
       }
     };
 
     xhr.onload = () => {
-      uploadProgContainer.style.display = 'none';
-      progressBar.style.width = '0%';
+      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
+      if (progressBar) progressBar.style.width = '0%';
       if (xhr.status === 200) {
         showToast('✓ File(s) saved to PC ~/Downloads');
         loadFiles();
       } else {
         showToast('Upload failed');
       }
-      fileInput.value = '';
+      if (fileInput) fileInput.value = '';
     };
 
     xhr.onerror = () => {
-      uploadProgContainer.style.display = 'none';
+      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
       showToast('Network error during upload');
     };
 
@@ -795,7 +824,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadFiles() {
-    fetch('/api/files')
+    if (!fileList) return;
+    fetch(`/api/files?token=${encodeURIComponent(authToken)}`)
       .then(res => res.json())
       .then(data => {
         fileList.innerHTML = '';
@@ -812,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="file-name">${escapeHtml(f.name)}</span>
               <span class="file-meta">${f.size} • ${f.time}</span>
             </div>
-            <a href="/api/download/${encodeURIComponent(f.name)}" class="btn-download" download>Download</a>
+            <a href="/api/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(authToken)}" class="btn-download" download>Download</a>
           `;
           fileList.appendChild(li);
         });
@@ -822,7 +852,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
-  document.getElementById('btnRefreshFiles').addEventListener('click', loadFiles);
+  const btnRefreshFiles = document.getElementById('btnRefreshFiles');
+  if (btnRefreshFiles) btnRefreshFiles.addEventListener('click', loadFiles);
 
   // ----------------------------------------------------
   // 5. Quick System Actions
