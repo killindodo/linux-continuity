@@ -3,6 +3,8 @@
 An Apple-style continuity ecosystem bridging Linux workstations and Android devices. Seamlessly synchronize clipboards, watch and interact with live terminal sessions, transfer files with AirDrop speed, control Android hardware remotely, inspect live system vitals, and manage device security with zero-trust pairing.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/killindodo/linux-continuity?color=blue&label=Latest%20Release)](https://github.com/killindodo/linux-continuity/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-LinuxContinuity.apk-success?style=flat&logo=android)](https://github.com/killindodo/linux-continuity/releases/latest/download/LinuxContinuity.apk)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
 [![GUI: PyQt6](https://img.shields.io/badge/GUI-PyQt6-blueviolet.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux%20X11-orange.svg)](#prerequisites)
@@ -192,10 +194,13 @@ sudo dnf install -y python3 python3-qt5 python3-tornado \
 ## Connecting Your Phone
 
 ### Option A: Native Android Companion App (Recommended)
-1. Download the pre-built APK directly from your PC dashboard by clicking **"Download Android App (.apk)"**, or access `http://<pc-ip>:8080/apk/LinuxContinuity.apk` in your mobile browser.
-2. Install the APK on your Android device (ensure *"Install Unknown Apps"* is allowed for your browser/installer).
-3. Open **Linux Continuity** on your phone, enter your PC's IP address (Local Wi-Fi or Tailscale) and the PIN shown on your PC screen, then tap **Connect**.
-4. Click **Approve** on the PC pairing prompt.
+You can get the companion APK via either method:
+- **Direct GitHub Release Download:** Download [`LinuxContinuity.apk`](https://github.com/killindodo/linux-continuity/releases/latest/download/LinuxContinuity.apk) from the [GitHub Releases](https://github.com/killindodo/linux-continuity/releases/latest) page.
+- **Local Workstation Download:** Click **"Download Android App (.apk)"** on the PC Connect Hub, or open `http://<pc-ip>:8080/apk/LinuxContinuity.apk` in your mobile browser.
+
+1. Install the APK on your Android device (ensure *"Install Unknown Apps"* is enabled for your browser/installer).
+2. Open **Linux Continuity** on your phone, enter your PC's IP address (Local Wi-Fi or Tailscale) and the PIN shown on your PC screen, then tap **Connect**.
+3. Click **Approve** on the PC pairing prompt.
 
 > [!TIP]
 > The source code for the Android application is located in [`android/`](android/). You can build it from source anytime using `./gradlew assembleDebug`.
