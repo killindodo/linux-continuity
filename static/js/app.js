@@ -103,21 +103,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const pane = document.getElementById(`tab-${target}`);
       if (pane) {
         pane.classList.add('active');
-        if (target === 'terminal' && window.fitAddon) {
+        if (target === 'terminal') {
           stopScreenLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
-          setTimeout(() => {
-            window.fitAddon.fit();
-            if (termWs && termWs.readyState === WebSocket.OPEN && term) {
-              termWs.send(JSON.stringify({
-                type: 'resize',
-                cols: term.cols,
-                rows: term.rows
-              }));
-            }
-          }, 150);
+          if (typeof loadDesktopWindows === 'function') loadDesktopWindows();
+          if (typeof startDesktopTermLoop === 'function') startDesktopTermLoop();
+          if (window.fitAddon && embeddedTermContainer && embeddedTermContainer.style.display !== 'none') {
+            setTimeout(() => {
+              window.fitAddon.fit();
+              if (termWs && termWs.readyState === WebSocket.OPEN && term) {
+                termWs.send(JSON.stringify({
+                  type: 'resize',
+                  cols: term.cols,
+                  rows: term.rows
+                }));
+              }
+            }, 150);
+          }
         } else if (target === 'screen') {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           if (typeof activeScreenSubmode === 'undefined' || activeScreenSubmode === 'mirror') {
@@ -125,16 +130,19 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshScreenFrame();
           }
         } else if (target === 'media') {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           stopScreenLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           if (typeof loadMediaStatus === 'function') loadMediaStatus();
           if (typeof startMediaLoop === 'function') startMediaLoop();
         } else if (target === 'vitals') {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           stopScreenLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof loadSystemStats === 'function') loadSystemStats();
           if (typeof startVitalsLoop === 'function') startVitalsLoop();
         } else {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           stopScreenLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
@@ -147,7 +155,240 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------------------------------
-  // 1. Terminal Setup (xterm.js + Shared Tmux Sessions)
+  // 1. Live PC Desktop Terminal Controller (Option A)
+  // ----------------------------------------------------
+  const btnTermModeDesktop = document.getElementById('btnTermModeDesktop');
+  const btnTermModeEmbedded = document.getElementById('btnTermModeEmbedded');
+  const desktopTermContainer = document.getElementById('desktopTermContainer');
+  const embeddedTermContainer = document.getElementById('embeddedTermContainer');
+
+  const desktopWinSelect = document.getElementById('desktopWinSelect');
+  const btnRefreshDesktopWins = document.getElementById('btnRefreshDesktopWins');
+  const btnFocusDesktopWin = document.getElementById('btnFocusDesktopWin');
+  const btnDesktopSnapshot = document.getElementById('btnDesktopSnapshot');
+  const desktopTermImg = document.getElementById('desktopTermImg');
+  const desktopTermStatus = document.getElementById('desktopTermStatus');
+
+  const desktopTermInput = document.getElementById('desktopTermInput');
+  const btnSendDesktopRun = document.getElementById('btnSendDesktopRun');
+  const btnSendDesktopType = document.getElementById('btnSendDesktopType');
+
+  let activeDesktopWid = '';
+  let desktopTermTimer = null;
+  let isFetchingDesktopFrame = false;
+
+  async function loadDesktopWindows() {
+    if (!desktopWinSelect) return;
+    try {
+      const res = await fetch(`/api/desktop/terminals?token=${encodeURIComponent(authToken)}`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        const wins = data.windows || [];
+        desktopWinSelect.innerHTML = '';
+        if (wins.length === 0) {
+          desktopWinSelect.innerHTML = '<option value="">No terminal window found</option>';
+          activeDesktopWid = '';
+          if (desktopTermStatus) desktopTermStatus.textContent = 'No terminal open on PC';
+          return;
+        }
+
+        wins.forEach((w, idx) => {
+          const opt = document.createElement('option');
+          opt.value = w.id;
+          opt.textContent = w.title;
+          if (idx === 0 && !activeDesktopWid) {
+            opt.selected = true;
+            activeDesktopWid = w.id;
+          } else if (w.id === activeDesktopWid) {
+            opt.selected = true;
+          }
+          desktopWinSelect.appendChild(opt);
+        });
+
+        if (!activeDesktopWid && wins.length > 0) {
+          activeDesktopWid = wins[0].id;
+        }
+
+        fetchDesktopTermFrame();
+      }
+    } catch (e) {}
+  }
+
+  function fetchDesktopTermFrame() {
+    if (isFetchingDesktopFrame || !desktopTermImg) return;
+    isFetchingDesktopFrame = true;
+    const wid = desktopWinSelect ? desktopWinSelect.value || activeDesktopWid : activeDesktopWid;
+    const ts = Date.now();
+    const img = new Image();
+    img.src = `/api/desktop/terminal/frame?token=${encodeURIComponent(authToken)}&id=${encodeURIComponent(wid)}&t=${ts}&w=960&q=65`;
+
+    img.onload = () => {
+      desktopTermImg.src = img.src;
+      isFetchingDesktopFrame = false;
+      if (desktopTermStatus) {
+        desktopTermStatus.textContent = `Live Terminal • ${new Date().toLocaleTimeString()}`;
+      }
+    };
+
+    img.onerror = () => {
+      isFetchingDesktopFrame = false;
+      if (desktopTermStatus) desktopTermStatus.textContent = 'Waiting for terminal window...';
+    };
+  }
+
+  function startDesktopTermLoop() {
+    stopDesktopTermLoop();
+    desktopTermTimer = setInterval(fetchDesktopTermFrame, 1500);
+  }
+
+  function stopDesktopTermLoop() {
+    if (desktopTermTimer) {
+      clearInterval(desktopTermTimer);
+      desktopTermTimer = null;
+    }
+  }
+
+  if (desktopWinSelect) {
+    desktopWinSelect.addEventListener('change', () => {
+      activeDesktopWid = desktopWinSelect.value;
+      fetchDesktopTermFrame();
+    });
+  }
+
+  if (btnRefreshDesktopWins) {
+    btnRefreshDesktopWins.addEventListener('click', () => {
+      loadDesktopWindows();
+      showToast('Scanning desktop windows...');
+    });
+  }
+
+  if (btnFocusDesktopWin) {
+    btnFocusDesktopWin.addEventListener('click', async () => {
+      const wid = desktopWinSelect ? desktopWinSelect.value : activeDesktopWid;
+      try {
+        await fetch(`/api/desktop/terminal/input?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: wid, focus_only: true })
+        });
+        showToast('Focused terminal on PC desktop');
+        setTimeout(fetchDesktopTermFrame, 200);
+      } catch (e) {
+        showToast('Focus failed');
+      }
+    });
+  }
+
+  if (btnDesktopSnapshot) {
+    btnDesktopSnapshot.addEventListener('click', () => {
+      fetchDesktopTermFrame();
+    });
+  }
+
+  // Submode Switcher: Desktop vs Embedded
+  if (btnTermModeDesktop && btnTermModeEmbedded) {
+    btnTermModeDesktop.addEventListener('click', () => {
+      btnTermModeDesktop.classList.add('active');
+      btnTermModeEmbedded.classList.remove('active');
+      if (desktopTermContainer) desktopTermContainer.style.display = 'flex';
+      if (embeddedTermContainer) embeddedTermContainer.style.display = 'none';
+      loadDesktopWindows();
+      startDesktopTermLoop();
+    });
+
+    btnTermModeEmbedded.addEventListener('click', () => {
+      btnTermModeEmbedded.classList.add('active');
+      btnTermModeDesktop.classList.remove('active');
+      if (desktopTermContainer) desktopTermContainer.style.display = 'none';
+      if (embeddedTermContainer) embeddedTermContainer.style.display = 'flex';
+      stopDesktopTermLoop();
+      if (fitAddon) {
+        setTimeout(() => fitAddon.fit(), 100);
+      }
+    });
+  }
+
+  // Send Command to Desktop Terminal
+  async function sendDesktopCommand(pressEnter = true) {
+    if (!desktopTermInput) return;
+    const text = desktopTermInput.value;
+    if (!text && pressEnter) {
+      sendDesktopKey('Return');
+      return;
+    }
+    if (!text) return;
+
+    const wid = desktopWinSelect ? desktopWinSelect.value : activeDesktopWid;
+    try {
+      await fetch(`/api/desktop/terminal/input?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: wid, text: text, press_enter: pressEnter })
+      });
+      desktopTermInput.value = '';
+      showToast(pressEnter ? '✓ Command sent to PC terminal' : 'Typed in PC terminal');
+      setTimeout(fetchDesktopTermFrame, 150);
+      setTimeout(fetchDesktopTermFrame, 600);
+    } catch (e) {
+      showToast('Failed to send command');
+    }
+  }
+
+  async function sendDesktopKey(key) {
+    const wid = desktopWinSelect ? desktopWinSelect.value : activeDesktopWid;
+    try {
+      await fetch(`/api/desktop/terminal/input?token=${encodeURIComponent(authToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: wid, key: key })
+      });
+      setTimeout(fetchDesktopTermFrame, 150);
+    } catch (e) {}
+  }
+
+  if (btnSendDesktopRun) {
+    btnSendDesktopRun.addEventListener('click', () => sendDesktopCommand(true));
+  }
+  if (btnSendDesktopType) {
+    btnSendDesktopType.addEventListener('click', () => sendDesktopCommand(false));
+  }
+
+  if (desktopTermInput) {
+    desktopTermInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendDesktopCommand(true);
+      }
+    });
+  }
+
+  // Desktop Terminal Key Toolbar Buttons
+  document.querySelectorAll('.kbtn.dkey[data-dkey]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-dkey');
+      sendDesktopKey(key);
+    });
+  });
+
+  // Desktop Terminal Quick Macro Chips
+  document.querySelectorAll('.btn-chip.dmacro[data-macro]').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const macro = chip.getAttribute('data-macro');
+      const wid = desktopWinSelect ? desktopWinSelect.value : activeDesktopWid;
+      try {
+        await fetch(`/api/desktop/terminal/input?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: wid, text: macro, press_enter: true })
+        });
+        showToast(`⚡ ${macro}`);
+        setTimeout(fetchDesktopTermFrame, 150);
+        setTimeout(fetchDesktopTermFrame, 600);
+      } catch (e) {}
+    });
+  });
+
+  // ----------------------------------------------------
+  // 1b. Embedded Terminal Setup (xterm.js + Shared Tmux Sessions)
   // ----------------------------------------------------
   const termContainer = document.getElementById('terminal');
   let term = null;
@@ -1553,6 +1794,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialization
   function initAppConnections() {
+    loadDesktopWindows();
+    startDesktopTermLoop();
     loadSessions();
     connectTerminal(currentSession);
     connectClipboard();

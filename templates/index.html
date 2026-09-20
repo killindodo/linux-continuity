@@ -45,8 +45,77 @@
     <!-- Main Content Panels -->
     <main class="panel-content">
       <!-- 1. Terminal Panel -->
+      <!-- 1. Terminal Panel (Live Desktop Window Controller + Embedded Shell) -->
       <section id="tab-terminal" class="tab-pane active">
-        <div class="terminal-container">
+        <!-- Sub-Mode Switcher: Live PC Terminal (Option A) vs Embedded Shell -->
+        <div class="screen-mode-bar" style="margin: 0; padding: 6px 10px; background: var(--card-bg); border-bottom: 1px solid var(--card-border);">
+          <div class="mode-tabs">
+            <button id="btnTermModeDesktop" class="submode-btn active">🖥️ Live PC Terminal</button>
+            <button id="btnTermModeEmbedded" class="submode-btn">💻 Embedded Shell</button>
+          </div>
+        </div>
+
+        <!-- Mode 1: Live PC Desktop Terminal Controller (Active by default) -->
+        <div id="desktopTermContainer" class="desktop-term-wrapper">
+          <!-- Window Selector & Actions Bar -->
+          <div class="term-session-bar" style="border-top: none;">
+            <div class="session-selector">
+              <label for="desktopWinSelect">Window:</label>
+              <select id="desktopWinSelect" style="max-width: 170px;">
+                <option value="">Detecting terminal windows...</option>
+              </select>
+              <button class="kbtn action" id="btnRefreshDesktopWins" title="Refresh window list">🔄</button>
+            </div>
+            <div class="session-actions">
+              <button class="kbtn action" id="btnFocusDesktopWin" title="Focus window on PC desktop">⚡ Focus on PC</button>
+              <button class="kbtn action" id="btnDesktopSnapshot" title="Take immediate frame snapshot">📸 Refresh</button>
+            </div>
+          </div>
+
+          <!-- Live Desktop Terminal Frame Viewport -->
+          <div class="desktop-term-viewport" id="desktopTermViewport">
+            <img id="desktopTermImg" src="/static/icons/icon.png" alt="Desktop Terminal Window" draggable="false">
+            <div id="desktopTermOverlay" class="cam-overlay">
+              <span id="desktopTermStatus">Live PC Terminal</span>
+            </div>
+          </div>
+
+          <!-- Command Input & Typing Form -->
+          <div class="desktop-term-cmd-bar">
+            <div class="cmd-input-row">
+              <input type="text" id="desktopTermInput" placeholder="Type command to send to PC terminal..." autocomplete="off">
+              <button id="btnSendDesktopRun" class="btn-primary-sm" title="Type command and press Enter">⚡ Run</button>
+              <button id="btnSendDesktopType" class="btn-sm" title="Type without pressing Enter">⌨️ Type</button>
+            </div>
+          </div>
+
+          <!-- Common Keys Row -->
+          <div class="key-toolbar">
+            <button class="kbtn dkey" data-dkey="Return">Enter</button>
+            <button class="kbtn dkey" data-dkey="ctrl+c">Ctrl+C</button>
+            <button class="kbtn dkey" data-dkey="ctrl+d">Ctrl+D</button>
+            <button class="kbtn dkey" data-dkey="ctrl+z">Ctrl+Z</button>
+            <button class="kbtn dkey" data-dkey="Tab">Tab</button>
+            <button class="kbtn dkey" data-dkey="Escape">Esc</button>
+            <button class="kbtn dkey" data-dkey="BackSpace">Bksp</button>
+            <button class="kbtn dkey" data-dkey="Up">▲</button>
+            <button class="kbtn dkey" data-dkey="Down">▼</button>
+            <button class="kbtn dkey" data-dkey="clear">Clear</button>
+          </div>
+
+          <!-- Quick Macro Command Chips -->
+          <div class="desktop-term-macros">
+            <button class="btn-chip dmacro" data-macro="ls -la">ls -la</button>
+            <button class="btn-chip dmacro" data-macro="git status">git status</button>
+            <button class="btn-chip dmacro" data-macro="git diff">git diff</button>
+            <button class="btn-chip dmacro" data-macro="htop">htop</button>
+            <button class="btn-chip dmacro" data-macro="pwd">pwd</button>
+            <button class="btn-chip dmacro" data-macro="clear">clear</button>
+          </div>
+        </div>
+
+        <!-- Mode 2: Embedded Shell Container (Hidden by default) -->
+        <div id="embeddedTermContainer" class="terminal-container" style="display: none;">
           <!-- Session Switcher & Control Header -->
           <div class="term-session-bar">
             <div class="session-selector">
@@ -547,6 +616,6 @@
 
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
-  <script src="/static/js/app.js?v=2.2"></script>
+  <script src="/static/js/app.js?v=2.3"></script>
 </body>
 </html>

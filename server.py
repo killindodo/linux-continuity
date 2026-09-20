@@ -58,6 +58,11 @@ from core.clipboard_sync import ClipboardSync
 from core.file_manager import FileManager
 from core.auth import AuthManager
 from core.av_capture import av_mgr
+from core.window_controller import (
+    list_desktop_terminal_windows,
+    capture_window_frame,
+    send_to_window
+)
 
 # Globals
 file_mgr = FileManager()
@@ -526,6 +531,98 @@ class MicStreamHandler(tornado.web.RequestHandler):
                     pass
 
 
+class DesktopTerminalsHandler(tornado.web.RequestHandler):
+    """Lists all open desktop terminal windows."""
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        wins = list_desktop_terminal_windows()
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"status": "ok", "windows": wins}))
+
+
+class DesktopTerminalFrameHandler(tornado.web.RequestHandler):
+    """Serves high-resolution live screenshot frame of the chosen desktop terminal window."""
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write("Unauthorized")
+            return
+
+        wid = self.get_argument("id", None)
+        w = int(self.get_argument("w", 960))
+        q = int(self.get_argument("q", 65))
+
+        if not wid:
+            wins = list_desktop_terminal_windows()
+            if wins:
+                wid = wins[0]["id"]
+
+        if wid:
+            frame = capture_window_frame(wid, width=w, quality=q)
+            if frame:
+                self.set_header("Content-Type", "image/jpeg")
+                self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.write(frame)
+                return
+
+        self.set_status(404)
+        self.write("Terminal window frame not available")
+
+
+class DesktopTerminalInputHandler(tornado.web.RequestHandler):
+    """Sends keystrokes or text commands directly to the targeted desktop terminal window."""
+    def post(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            data = json.loads(self.request.body)
+            wid = data.get("id")
+            text = data.get("text")
+            key = data.get("key")
+            press_enter = data.get("press_enter", False)
+            focus_only = data.get("focus_only", False)
+
+            if not wid:
+                wins = list_desktop_terminal_windows()
+                if wins:
+                    wid = wins[0]["id"]
+
+            if not wid:
+                self.set_status(404)
+                self.write(json.dumps({"status": "error", "message": "No active terminal window found"}))
+                return
+
+            if focus_only:
+                send_to_window(wid)
+                self.set_header("Content-Type", "application/json")
+                self.write(json.dumps({"status": "ok", "message": "Window focused"}))
+                return
+
+            if text:
+                send_to_window(wid, text=text)
+                if press_enter:
+                    send_to_window(wid, key="Return")
+
+            if key:
+                send_to_window(wid, key=key)
+
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"status": "ok"}))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
 class InfoHandler(tornado.web.RequestHandler):
     def get(self):
         self.set_header("Content-Type", "application/json")
@@ -702,6 +799,9 @@ def make_app():
         (r"/api/camera/frame", CameraFrameHandler),
         (r"/api/camera/status", CameraStatusHandler),
         (r"/api/mic/stream", MicStreamHandler),
+        (r"/api/desktop/terminals", DesktopTerminalsHandler),
+        (r"/api/desktop/terminal/frame", DesktopTerminalFrameHandler),
+        (r"/api/desktop/terminal/input", DesktopTerminalInputHandler),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": os.path.join(PROJECT_ROOT, "static")}),
     ], template_path=os.path.join(PROJECT_ROOT, "templates"))
 

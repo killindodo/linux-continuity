@@ -1344,3 +1344,71 @@ body {
   100% { transform: scaleY(1.0); }
 }
 
+/* Desktop Terminal Mirror & Remote Control */
+.desktop-term-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-dark);
+}
+
+.desktop-term-viewport {
+  flex: 1;
+  min-height: 280px;
+  background-color: #0c0e14;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.desktop-term-viewport img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.desktop-term-cmd-bar {
+  padding: 8px 10px;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.cmd-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.cmd-input-row input {
+  flex: 1;
+  background-color: #0c0e14;
+  border: 1px solid #282f42;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #50fa7b;
+  font-family: monospace;
+  font-size: 13px;
+  outline: none;
+}
+
+.cmd-input-row input:focus {
+  border-color: var(--accent-cyan);
+}
+
+.desktop-term-macros {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px 10px 10px;
+  overflow-x: auto;
+  background-color: var(--card-bg);
+}
+
+.desktop-term-macros::-webkit-scrollbar {
+  display: none;
+}
+
+
