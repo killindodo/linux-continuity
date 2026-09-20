@@ -52,7 +52,9 @@ from core.power_manager import (
 from core.tunnel import (
     tunnel_mgr,
     get_tailscale_ip,
-    get_ssh_info
+    get_ssh_info,
+    is_tailscale_running,
+    toggle_tailscale
 )
 from core.clipboard_sync import ClipboardSync
 from core.file_manager import FileManager
@@ -223,29 +225,103 @@ class ClipboardWebSocket(tornado.websocket.WebSocketHandler):
 
 class UploadHandler(tornado.web.RequestHandler):
     def post(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        target_dir = self.get_argument("target_dir", None)
         files = self.request.files.get("files", [])
         saved = []
         for f in files:
             filename = f.get("filename")
             body = f.get("body")
             if filename and body:
-                path = file_mgr.save_file(filename, body)
+                path = file_mgr.save_file(filename, body, target_dir=target_dir)
                 saved.append(os.path.basename(path))
 
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"status": "success", "saved": saved}))
+        self.write(json.dumps({
+            "status": "success",
+            "saved": saved,
+            "target_dir": target_dir or file_mgr.get_default_save_dir()
+        }))
 
 
 class FilesListHandler(tornado.web.RequestHandler):
     def get(self):
-        files = file_mgr.list_files()
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        dir_path = self.get_argument("dir", None)
+        files = file_mgr.list_files(dir_path=dir_path)
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"files": files}))
+        self.write(json.dumps({
+            "files": files,
+            "current_dir": dir_path or file_mgr.get_default_save_dir()
+        }))
+
+
+class FileBrowseHandler(tornado.web.RequestHandler):
+    def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        path = self.get_argument("path", None)
+        data = file_mgr.browse_directory(path)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"status": "ok", **data}))
+
+    def post(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            body = json.loads(self.request.body)
+            action = body.get("action")
+            if action == "set_default":
+                path = body.get("path")
+                ok = file_mgr.set_default_save_dir(path)
+                self.write(json.dumps({"status": "ok" if ok else "error", "default_save_dir": file_mgr.get_default_save_dir()}))
+            elif action == "save_place":
+                path = body.get("path")
+                ok = file_mgr.add_saved_place(path)
+                self.write(json.dumps({"status": "ok" if ok else "error", "saved_places": file_mgr.get_saved_places()}))
+            elif action == "remove_place":
+                path = body.get("path")
+                ok = file_mgr.remove_saved_place(path)
+                self.write(json.dumps({"status": "ok" if ok else "error", "saved_places": file_mgr.get_saved_places()}))
+            elif action == "mkdir":
+                parent = body.get("parent")
+                name = body.get("name")
+                res = file_mgr.create_directory(parent, name)
+                self.write(json.dumps(res))
+            else:
+                self.write(json.dumps({"status": "error", "message": "Unknown action"}))
+        except Exception as e:
+            self.write(json.dumps({"status": "error", "message": str(e)}))
 
 
 class DownloadHandler(tornado.web.RequestHandler):
     def get(self, filename):
-        file_path = file_mgr.get_file_path(filename)
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write("Unauthorized")
+            return
+
+        dir_path = self.get_argument("dir", None)
+        file_path = file_mgr.get_file_path(filename, dir_path=dir_path)
         if not file_path:
             self.set_status(404)
             self.write("File not found")
@@ -256,6 +332,7 @@ class DownloadHandler(tornado.web.RequestHandler):
         with open(file_path, "rb") as f:
             while chunk := f.read(65536):
                 self.write(chunk)
+
 
 
 class TerminalsApiHandler(tornado.web.RequestHandler):
@@ -317,6 +394,7 @@ class TunnelApiHandler(tornado.web.RequestHandler):
             "tunnel_active": tunnel_mgr.is_running,
             "tunnel_url": tunnel_mgr.public_url,
             "tailscale_ip": get_tailscale_ip(),
+            "tailscale_running": is_tailscale_running(),
             "local_ip": get_local_ip(),
             "ssh": get_ssh_info()
         }))
@@ -343,6 +421,27 @@ class TunnelApiHandler(tornado.web.RequestHandler):
         except Exception as e:
             self.set_status(500)
             self.write(json.dumps({"status": "error", "message": str(e)}))
+
+
+class TailscaleToggleHandler(tornado.web.RequestHandler):
+    """Brings Tailscale mesh VPN UP or DOWN directly from the deck."""
+    def post(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
+
+        try:
+            data = json.loads(self.request.body)
+            enable = bool(data.get("enable", True))
+            res = toggle_tailscale(enable)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(res))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"status": "error", "message": str(e)}))
+
 
 
 class ScreenCaptureHandler(tornado.web.RequestHandler):
@@ -781,9 +880,11 @@ def make_app():
         (r"/api/auth", AuthHandler),
         (r"/api/upload", UploadHandler),
         (r"/api/files", FilesListHandler),
+        (r"/api/files/browse", FileBrowseHandler),
         (r"/api/download/(.+)", DownloadHandler),
         (r"/api/terminals", TerminalsApiHandler),
         (r"/api/tunnel", TunnelApiHandler),
+        (r"/api/tailscale/toggle", TailscaleToggleHandler),
         (r"/api/screen", ScreenCaptureHandler),
         (r"/api/screen/click", ScreenClickHandler),
         (r"/api/screen/key", ScreenKeyHandler),

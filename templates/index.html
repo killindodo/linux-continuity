@@ -31,23 +31,20 @@
       <div id="connStatus" class="status-badge disconnected">Connecting...</div>
     </header>
 
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs: Dedicated Continuity Apps + System Controls -->
     <nav class="tabs-nav">
       <button class="tab-btn active" data-tab="terminal">📟 Terminal</button>
-      <button class="tab-btn" data-tab="screen">🖥️ Screen</button>
-      <button class="tab-btn" data-tab="media">🎵 Media</button>
-      <button class="tab-btn" data-tab="vitals">📊 Vitals</button>
+      <button class="tab-btn" data-tab="files">📁 Files</button>
       <button class="tab-btn" data-tab="clipboard">📋 Clipboard</button>
-      <button class="tab-btn" data-tab="files">📁 AirDrop</button>
-      <button class="tab-btn" data-tab="system">⚡ Deck</button>
+      <button class="tab-btn" data-tab="av">📷 Camera & Mic</button>
+      <button class="tab-btn" data-tab="system">⚡ System Controls</button>
     </nav>
 
     <!-- Main Content Panels -->
     <main class="panel-content">
-      <!-- 1. Terminal Panel -->
       <!-- 1. Terminal Panel (Live Desktop Window Controller + Embedded Shell) -->
       <section id="tab-terminal" class="tab-pane active">
-        <!-- Sub-Mode Switcher: Live PC Terminal (Option A) vs Embedded Shell -->
+        <!-- Sub-Mode Switcher: Live PC Terminal vs Embedded Shell -->
         <div class="screen-mode-bar" style="margin: 0; padding: 6px 10px; background: var(--card-bg); border-bottom: 1px solid var(--card-border);">
           <div class="mode-tabs">
             <button id="btnTermModeDesktop" class="submode-btn active">🖥️ Live PC Terminal</button>
@@ -165,97 +162,201 @@
         </div>
       </section>
 
-      <!-- 2. Screen Mirror & Virtual Trackpad Panel -->
-      <section id="tab-screen" class="tab-pane">
-        <div class="screen-wrapper">
-          <!-- Mode Switcher: Mirror vs Trackpad -->
-          <div class="screen-mode-bar">
-            <div class="mode-tabs">
-              <button id="btnSubModeMirror" class="submode-btn active">🖥️ Screen View</button>
-              <button id="btnSubModeTrackpad" class="submode-btn">🖱️ Virtual Trackpad</button>
+      <!-- 2. File Hub & Browser Panel (Browse PC, Select & Save Destination, AirDrop Upload) -->
+      <section id="tab-files" class="tab-pane">
+        <!-- Target Save Location & Bookmarks Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📂 Target Save Destination</h3>
+            <span id="targetDirBadge" class="status-pill status-idle">Active Folder</span>
+          </div>
+
+          <div class="target-folder-box">
+            <div class="target-path-row">
+              <span class="folder-pin-icon">📍</span>
+              <span id="currentTargetPathDisplay" class="target-path-text">/home/killindodo/Downloads</span>
+            </div>
+            <div class="target-actions-row">
+              <button id="btnSetAsDefaultDir" class="kbtn action highlight" title="Make this the permanent default save folder">
+                ⭐ Save as Default Location
+              </button>
+              <button id="btnBookmarkCurrentDir" class="kbtn action" title="Bookmark this folder in Quick Places">
+                🔖 Bookmark
+              </button>
             </div>
           </div>
 
-          <!-- Screen Mirror View Sub-panel -->
-          <div id="screenMirrorSubpanel">
-            <div class="screen-toolbar">
-              <div class="st-left">
-                <label for="screenRefreshRate">Rate:</label>
-                <select id="screenRefreshRate">
-                  <option value="1000">Live 1s</option>
-                  <option value="2000" selected>2s</option>
-                  <option value="4000">4s</option>
-                  <option value="0">Manual</option>
-                </select>
-                <button id="btnScreenManualRefresh" class="kbtn action">🔄 Refresh</button>
-              </div>
-              <div class="st-right">
-                <span class="click-mode-label">Tap:</span>
-                <button class="click-mode-btn active" data-btn="1" id="modeLeft">Left</button>
-                <button class="click-mode-btn" data-btn="3" id="modeRight">Right</button>
-                <button class="click-mode-btn" data-btn="double" id="modeDouble">Double</button>
-              </div>
+          <!-- Quick Places / Shortcuts Bar -->
+          <div class="quick-places-container">
+            <span class="quick-places-label">Quick Places:</span>
+            <div id="quickShortcutsBar" class="quick-places-chips">
+              <!-- Dynamically rendered shortcuts (Home, Downloads, Desktop, Docs, etc.) -->
             </div>
+          </div>
+        </div>
 
-            <div class="screen-viewport" id="screenViewport">
-              <div class="screen-canvas-box" id="screenCanvasBox">
-                <img id="screenImg" src="/static/icons/icon.png" alt="Desktop Screen" draggable="false">
-                <div id="screenRipple" class="screen-ripple"></div>
-              </div>
+        <!-- File Upload Card (Uploads directly to selected folder) -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📤 Upload File to PC</h3>
+            <span id="uploadDestHint" class="badge-sub">Saving to selected folder</span>
+          </div>
+          <div class="drop-zone" id="dropZone">
+            <span class="drop-icon">📁</span>
+            <p>Tap here or drop files to save to this folder</p>
+            <input type="file" id="fileInput" multiple style="display:none;">
+          </div>
+          <div id="uploadProgress" class="upload-progress" style="display:none;">
+            <div class="progress-bar">
+              <div id="progressBarFill" class="progress-fill"></div>
+            </div>
+            <span id="uploadStatusText">Uploading...</span>
+          </div>
+        </div>
+
+        <!-- Interactive PC Directory & File Browser Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🖥️ PC Folder & File Browser</h3>
+            <div class="browser-header-tools">
+              <button id="btnBrowseUp" class="kbtn action" title="Go to parent directory">⬆️ Up</button>
+              <button id="btnCreateNewFolder" class="kbtn action" title="Create new directory in current folder">📁+ New</button>
+              <button id="btnRefreshBrowser" class="kbtn action" title="Refresh directory">🔄</button>
             </div>
           </div>
 
-          <!-- Virtual Trackpad Sub-panel -->
-          <div id="trackpadSubpanel" style="display: none;">
-            <div class="trackpad-surface" id="trackpadSurface">
-              <div class="trackpad-hint">
-                <span>Touch & Drag to Move Cursor</span>
-                <small>1-Finger Tap = Left Click • 2-Finger Tap = Right Click • 2-Finger Drag = Scroll</small>
-              </div>
-              <div class="trackpad-pointer" id="trackpadPointer"></div>
-            </div>
-
-            <div class="trackpad-sens-bar">
-              <div class="sens-header">
-                <span>⚡ Cursor Sensitivity</span>
-                <span id="tpSensVal" class="sens-val-badge">1.5x</span>
-              </div>
-              <input type="range" id="tpSensSlider" min="0.5" max="3.5" step="0.1" value="1.5" class="slider-vol">
-            </div>
-
-            <div class="trackpad-buttons">
-              <button id="btnTrackpadLeft" class="btn-tp">Left Click</button>
-              <button id="btnTrackpadMiddle" class="btn-tp">Middle</button>
-              <button id="btnTrackpadRight" class="btn-tp">Right Click</button>
-            </div>
+          <!-- Breadcrumbs Bar -->
+          <div id="dirBreadcrumbs" class="dir-breadcrumbs-bar">
+            <!-- Dynamically populated breadcrumb links -->
           </div>
 
-          <!-- Virtual Keyboard & Typing Controller -->
-          <div class="screen-kbd-bar">
-            <div class="s-keys-row">
-              <button class="kbtn s-key" data-skey="Return">Enter</button>
-              <button class="kbtn s-key" data-skey="BackSpace">Bksp</button>
-              <button class="kbtn s-key" data-skey="Tab">Tab</button>
-              <button class="kbtn s-key" data-skey="Escape">Esc</button>
-              <button class="kbtn s-key" data-skey="ctrl+c">Ctrl+C</button>
-              <button class="kbtn s-key" data-skey="super">Super</button>
-              <button class="kbtn s-key" data-skey="alt+Tab">Alt+Tab</button>
-              <button class="kbtn s-key" data-skey="space">Space</button>
-            </div>
-            <div class="screen-type-box">
-              <input type="text" id="screenTextInput" placeholder="Type text to send to active PC window...">
-              <button id="btnScreenSendText" class="btn-primary-sm">Send</button>
-            </div>
+          <!-- Subdirectories Grid -->
+          <div class="browser-section-label">Subfolders:</div>
+          <div id="browserFoldersGrid" class="folders-grid">
+            <div class="file-loading">Loading folders...</div>
+          </div>
+
+          <!-- Files in current directory -->
+          <div class="browser-section-label" style="margin-top: 14px;">Files:</div>
+          <div id="browserFilesContainer" class="files-list-container">
+            <ul id="pcFilesList" class="files-list">
+              <li class="file-item empty">Loading files...</li>
+            </ul>
           </div>
         </div>
       </section>
 
-      <!-- 3. Media & Audio Panel -->
-      <section id="tab-media" class="tab-pane">
-        <!-- Now Playing Card -->
+      <!-- 3. Clipboard Sync Panel -->
+      <section id="tab-clipboard" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>PC Clipboard (Live Sync)</h3>
+            <button id="btnCopyFromPc" class="btn-sm">Copy to Phone</button>
+          </div>
+          <div id="pcClipboardText" class="clipboard-box placeholder">
+            Waiting for clipboard content from PC...
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Send to PC Clipboard</h3>
+          </div>
+          <textarea id="phoneClipboardInput" class="input-textarea" placeholder="Type or paste text here to immediately send to Linux PC..."></textarea>
+          <button id="btnSendToPc" class="btn-primary">⚡ Send to PC Clipboard</button>
+        </div>
+      </section>
+
+      <!-- 4. Dedicated Camera & Mic AV Stream Panel -->
+      <section id="tab-av" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <h3>📷 PC Camera & 🎙️ Mic Stream</h3>
+            <span id="camStatusBadge" class="status-pill status-idle">Ready</span>
+          </div>
+
+          <!-- Camera Live Feed / Snapshot Section -->
+          <div class="cam-preview-box" id="camPreviewBox">
+            <img id="camImg" src="/static/icons/icon.png" alt="PC Webcam" draggable="false">
+            <div id="camOverlay" class="cam-overlay">
+              <span id="camOverlayText">Tap "Start Live Camera" or "Take Photo"</span>
+            </div>
+          </div>
+
+          <div class="cam-controls-row">
+            <button id="btnToggleCamStream" class="kbtn action">▶ Start Live Camera</button>
+            <button id="btnCamSnapshot" class="kbtn action">📸 Take Photo</button>
+            <button id="btnOpenPcCamApp" class="kbtn action">🖥️ Open on PC</button>
+          </div>
+
+          <!-- Mic Section -->
+          <div class="mic-stream-box" style="margin-top: 14px; border-top: 1px solid var(--card-border); padding-top: 14px;">
+            <div class="mic-status-row">
+              <div class="mic-info">
+                <span class="mic-title" style="font-weight: 600; font-size: 13px; color: var(--text-main);">🎙️ PC Microphone Audio</span>
+                <p id="micStatusText" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Stream live audio from Linux PC to phone</p>
+              </div>
+              <div id="micWaveform" class="mic-waveform" style="display:none;">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+
+            <div class="mic-actions-row" style="margin-top: 10px;">
+              <button id="btnToggleMicListen" class="btn-primary" style="width: 100%;">🎧 Listen to PC Mic</button>
+            </div>
+            <audio id="micAudioPlayer" preload="none" style="display:none;"></audio>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Dedicated System Controls Menu (Deck, Tailscale Toggle, Media, Vitals, Power) -->
+      <section id="tab-system" class="tab-pane">
+        <!-- Tailscale Mesh Remote Access & ON/OFF Toggle -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🌐 Tailscale Remote Access</h3>
+            <span id="tailscaleStatusBadge" class="status-pill status-idle">Checking...</span>
+          </div>
+
+          <div class="ts-deck-box">
+            <div class="ts-toggle-row">
+              <div class="ts-toggle-left">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="tailscaleToggle">
+                  <span class="slider round"></span>
+                </label>
+                <div class="ts-toggle-labels">
+                  <span class="ts-title">Tailscale Mesh VPN</span>
+                  <span id="tailscaleToggleHint" class="ts-hint">Toggle connection on / off</span>
+                </div>
+              </div>
+              <button id="btnRefreshTunnelStatus" class="kbtn action" title="Refresh Tailscale status">🔄</button>
+            </div>
+
+            <div class="remote-tunnel-box" style="margin-top: 10px;">
+              <div class="remote-row">
+                <span class="remote-label">Tailscale Node IP:</span>
+                <span class="remote-val" id="remoteTailscaleIp">Detecting...</span>
+              </div>
+              <div class="remote-actions-row" style="margin-top: 8px;">
+                <button id="btnCopyTailscaleUrl" class="btn-sm">📋 Copy Web App Link</button>
+              </div>
+            </div>
+
+            <div class="remote-tunnel-box" style="margin-top: 10px;">
+              <div class="remote-row">
+                <span class="remote-label">SSH Remote Terminal:</span>
+              </div>
+              <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
+              <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Audio Volume & Media Player (MPRIS) -->
         <div class="card media-card">
           <div class="card-header">
-            <h3>Now Playing (MPRIS)</h3>
+            <h3>🎵 Audio & Now Playing</h3>
             <span id="mediaPlayerName" class="badge-sub">No Player</span>
           </div>
 
@@ -279,42 +380,37 @@
             <button class="media-btn" id="btnMediaNext" title="Next Track">⏭️</button>
             <button class="media-btn" id="btnMediaStop" title="Stop">⏹️</button>
           </div>
-        </div>
 
-        <!-- Master Volume Control Card -->
-        <div class="card">
-          <div class="card-header">
-            <h3>Master Audio Volume</h3>
-            <span id="volPercentBadge" class="badge-highlight">--%</span>
-          </div>
-          
-          <div class="vol-control-box">
-            <button id="btnToggleMute" class="btn-mute" title="Toggle Mute">🔊</button>
-            <input type="range" id="volumeSlider" min="0" max="150" value="50" class="slider-vol">
-          </div>
-
-          <div class="vol-presets">
-            <button class="btn-chip" data-vol="0">0%</button>
-            <button class="btn-chip" data-vol="25">25%</button>
-            <button class="btn-chip" data-vol="50">50%</button>
-            <button class="btn-chip" data-vol="75">75%</button>
-            <button class="btn-chip" data-vol="100">100%</button>
+          <!-- Master Volume Section -->
+          <div class="vol-control-section" style="margin-top: 14px; border-top: 1px solid var(--card-border); padding-top: 12px;">
+            <div class="vol-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 13px; color: var(--text-main);">🔊 Master Volume</span>
+              <span id="volPercentBadge" class="badge-highlight">--%</span>
+            </div>
+            <div class="vol-control-box">
+              <button id="btnToggleMute" class="btn-mute" title="Toggle Mute">🔊</button>
+              <input type="range" id="volumeSlider" min="0" max="150" value="50" class="slider-vol">
+            </div>
+            <div class="vol-presets">
+              <button class="btn-chip" data-vol="0">0%</button>
+              <button class="btn-chip" data-vol="25">25%</button>
+              <button class="btn-chip" data-vol="50">50%</button>
+              <button class="btn-chip" data-vol="75">75%</button>
+              <button class="btn-chip" data-vol="100">100%</button>
+            </div>
           </div>
         </div>
-      </section>
 
-      <!-- 4. System Vitals & Hardware Monitor Panel -->
-      <section id="tab-vitals" class="tab-pane">
+        <!-- System Vitals & Hardware Monitor -->
         <div class="card">
           <div class="card-header">
-            <h3>🖥️ System Vitals</h3>
+            <h3>📊 System Vitals</h3>
             <div class="vitals-header-actions">
               <span id="vitalsUptime" class="badge-sub">Uptime: --</span>
               <button id="btnRefreshVitals" class="btn-sm">🔄 Refresh</button>
             </div>
           </div>
 
-          <!-- Vitals Grid -->
           <div class="vitals-grid">
             <!-- CPU Card -->
             <div class="vital-tile">
@@ -387,124 +483,6 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <!-- 5. Clipboard Panel -->
-      <section id="tab-clipboard" class="tab-pane">
-        <div class="card">
-          <div class="card-header">
-            <h3>PC Clipboard (Live Sync)</h3>
-            <button id="btnCopyFromPc" class="btn-sm">Copy to Phone</button>
-          </div>
-          <div id="pcClipboardText" class="clipboard-box placeholder">
-            Waiting for clipboard content from PC...
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Send to PC Clipboard</h3>
-          </div>
-          <textarea id="phoneClipboardInput" class="input-textarea" placeholder="Type or paste text here to immediately send to Linux PC..."></textarea>
-          <button id="btnSendToPc" class="btn-primary">⚡ Send to PC Clipboard</button>
-        </div>
-      </section>
-
-      <!-- 6. AirDrop Files Panel -->
-      <section id="tab-files" class="tab-pane">
-        <div class="card">
-          <div class="card-header">
-            <h3>Send Files to Linux (~/Downloads)</h3>
-          </div>
-          <div class="drop-zone" id="dropZone">
-            <span class="drop-icon">📤</span>
-            <p>Tap here or drop files to send to PC</p>
-            <input type="file" id="fileInput" multiple style="display:none;">
-          </div>
-          <div id="uploadProgress" class="upload-progress" style="display:none;">
-            <div class="progress-bar">
-              <div id="progressBarFill" class="progress-fill"></div>
-            </div>
-            <span id="uploadStatusText">Uploading...</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Recent PC Files</h3>
-            <button id="btnRefreshFiles" class="btn-sm">Refresh</button>
-          </div>
-          <div id="pcFilesList" class="files-list">
-            <div class="file-loading">Loading recent files...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 7. Deck, Power & System Panel -->
-      <section id="tab-system" class="tab-pane">
-        <!-- Quick Launch Deck -->
-        <div class="card">
-          <div class="card-header">
-            <h3>🚀 Quick Actions</h3>
-          </div>
-          <div class="action-grid">
-            <button class="action-card" data-app="terminal">
-              <span class="act-icon">💻</span>
-              <span class="act-title">Terminal</span>
-            </button>
-            <button class="action-card" data-app="camera">
-              <span class="act-icon">📷</span>
-              <span class="act-title">PC Camera</span>
-            </button>
-            <button class="action-card" data-app="browser">
-              <span class="act-icon">🌐</span>
-              <span class="act-title">Browser</span>
-            </button>
-            <button class="action-card" data-app="settings">
-              <span class="act-icon">⚙️</span>
-              <span class="act-title">Settings</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Remote Camera & Microphone Monitor -->
-        <div class="card">
-          <div class="card-header">
-            <h3>📷 PC Camera & 🎙️ Mic Stream</h3>
-            <span id="camStatusBadge" class="status-pill status-idle">Ready</span>
-          </div>
-
-          <!-- Camera Live Feed / Snapshot Section -->
-          <div class="cam-preview-box" id="camPreviewBox">
-            <img id="camImg" src="/static/icons/icon.png" alt="PC Webcam" draggable="false">
-            <div id="camOverlay" class="cam-overlay">
-              <span id="camOverlayText">Tap "Start Live Camera" or "Take Photo"</span>
-            </div>
-          </div>
-
-          <div class="cam-controls-row">
-            <button id="btnToggleCamStream" class="kbtn action">▶ Start Live Camera</button>
-            <button id="btnCamSnapshot" class="kbtn action">📸 Take Photo</button>
-            <button id="btnOpenPcCamApp" class="kbtn action">🖥️ Open on PC</button>
-          </div>
-
-          <div class="mic-stream-box" style="margin-top: 14px; border-top: 1px solid var(--card-border); padding-top: 14px;">
-            <div class="mic-status-row">
-              <div class="mic-info">
-                <span class="mic-title" style="font-weight: 600; font-size: 13px; color: var(--text-main);">🎙️ PC Microphone Audio</span>
-                <p id="micStatusText" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Stream live audio from Linux PC to phone</p>
-              </div>
-              <div id="micWaveform" class="mic-waveform" style="display:none;">
-                <span></span><span></span><span></span><span></span><span></span>
-              </div>
-            </div>
-
-            <div class="mic-actions-row" style="margin-top: 10px;">
-              <button id="btnToggleMicListen" class="btn-primary" style="width: 100%;">🎧 Listen to PC Mic</button>
-            </div>
-            <audio id="micAudioPlayer" preload="none" style="display:none;"></audio>
-          </div>
-        </div>
 
         <!-- Power & Display Controls -->
         <div class="card">
@@ -535,6 +513,31 @@
           </div>
         </div>
 
+        <!-- Quick Launch Deck -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🚀 Quick App Actions</h3>
+          </div>
+          <div class="action-grid">
+            <button class="action-card" data-app="terminal">
+              <span class="act-icon">💻</span>
+              <span class="act-title">Terminal</span>
+            </button>
+            <button class="action-card" data-app="camera">
+              <span class="act-icon">📷</span>
+              <span class="act-title">PC Camera</span>
+            </button>
+            <button class="action-card" data-app="browser">
+              <span class="act-icon">🌐</span>
+              <span class="act-title">Browser</span>
+            </button>
+            <button class="action-card" data-app="settings">
+              <span class="act-icon">⚙️</span>
+              <span class="act-title">Settings</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Send Desktop Notification -->
         <div class="card">
           <div class="card-header">
@@ -544,32 +547,6 @@
             <input type="text" id="notifTitleInput" placeholder="Notification Title (e.g. Call Alert)">
             <input type="text" id="notifMsgInput" placeholder="Message details...">
             <button id="btnSendNotification" class="btn-primary">Send Desktop Notification</button>
-          </div>
-        </div>
-
-        <!-- Remote Connectivity (Tailscale Mesh VPN) -->
-        <div class="card">
-          <div class="card-header">
-            <h3>🌐 Tailscale Remote Access</h3>
-            <button id="btnRefreshTunnelStatus" class="btn-sm">Refresh</button>
-          </div>
-          
-          <div class="remote-tunnel-box">
-            <div class="remote-row">
-              <span class="remote-label">Tailscale Node IP:</span>
-              <span class="remote-val" id="remoteTailscaleIp">Detecting...</span>
-            </div>
-            <div class="remote-actions-row" style="margin-top: 8px;">
-              <button id="btnCopyTailscaleUrl" class="btn-sm">📋 Copy Web App Link</button>
-            </div>
-          </div>
-
-          <div class="remote-tunnel-box" style="margin-top: 10px;">
-            <div class="remote-row">
-              <span class="remote-label">SSH Remote Terminal:</span>
-            </div>
-            <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
-            <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
           </div>
         </div>
 
@@ -616,6 +593,6 @@
 
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
-  <script src="/static/js/app.js?v=2.3"></script>
+  <script src="/static/js/app.js?v=2.4"></script>
 </body>
 </html>

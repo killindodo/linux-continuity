@@ -13,6 +13,24 @@ import threading
 from typing import Optional, Callable, List, Dict, Any
 
 
+def is_tailscale_running() -> bool:
+    """Returns True if the Tailscale interface/backend is running."""
+    ts_bin = shutil.which("tailscale") or "/usr/sbin/tailscale"
+    if not os.path.exists(ts_bin):
+        return False
+    try:
+        res = subprocess.run(
+            [ts_bin, "status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=2.0
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 def get_tailscale_ip() -> Optional[str]:
     """Returns the local node's IPv4 address on Tailscale mesh, if active."""
     ts_bin = shutil.which("tailscale") or "/usr/sbin/tailscale"
@@ -32,6 +50,45 @@ def get_tailscale_ip() -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def toggle_tailscale(enable: bool) -> Dict[str, Any]:
+    """Brings Tailscale UP or DOWN. Detects operator permission errors gracefully."""
+    currently_running = is_tailscale_running()
+    if enable and currently_running:
+        return {"status": "ok", "running": True, "tailscale_ip": get_tailscale_ip(), "message": "Tailscale is already active"}
+    if not enable and not currently_running:
+        return {"status": "ok", "running": False, "tailscale_ip": None, "message": "Tailscale is already stopped"}
+
+    ts_bin = shutil.which("tailscale") or "/usr/sbin/tailscale"
+    if not os.path.exists(ts_bin):
+        return {"status": "error", "message": "Tailscale binary not found"}
+
+    cmd = [ts_bin, "up"] if enable else [ts_bin, "down"]
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5.0
+        )
+        if res.returncode == 0:
+            ip = get_tailscale_ip() if enable else None
+            return {"status": "ok", "running": enable, "tailscale_ip": ip}
+        else:
+            err = (res.stderr or res.stdout).strip()
+            if "operator" in err or "Access denied" in err or "sudo" in err:
+                return {
+                    "status": "error",
+                    "code": "OPERATOR_REQUIRED",
+                    "message": "Permission needed. Run 'sudo tailscale set --operator=$USER' on PC once to allow 1-tap toggle without root.",
+                    "details": err
+                }
+            return {"status": "error", "message": err or "Failed to change Tailscale state"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 
 def get_ssh_info() -> Dict[str, Any]:

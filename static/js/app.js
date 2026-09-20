@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Tab Switching
+  // Tab Switching: Terminal, Files, Clipboard, Camera/Mic (AV), System Controls
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabPanes = document.querySelectorAll('.tab-pane');
 
@@ -103,8 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const pane = document.getElementById(`tab-${target}`);
       if (pane) {
         pane.classList.add('active');
+
+        // Stop loops that shouldn't run in background
         if (target === 'terminal') {
-          stopScreenLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           if (typeof loadDesktopWindows === 'function') loadDesktopWindows();
@@ -121,34 +122,26 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }, 150);
           }
-        } else if (target === 'screen') {
+        } else if (target === 'files') {
           if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
-          if (typeof activeScreenSubmode === 'undefined' || activeScreenSubmode === 'mirror') {
-            startScreenLoop();
-            refreshScreenFrame();
-          }
-        } else if (target === 'media') {
+          if (typeof loadDirectory === 'function') loadDirectory(currentBrowsePath);
+        } else if (target === 'av') {
           if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
-          stopScreenLoop();
+          if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
+        } else if (target === 'system') {
+          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
           if (typeof loadMediaStatus === 'function') loadMediaStatus();
           if (typeof startMediaLoop === 'function') startMediaLoop();
-        } else if (target === 'vitals') {
-          if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
-          stopScreenLoop();
-          if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof loadSystemStats === 'function') loadSystemStats();
           if (typeof startVitalsLoop === 'function') startVitalsLoop();
+          if (typeof loadTunnelStatus === 'function') loadTunnelStatus();
         } else {
           if (typeof stopDesktopTermLoop === 'function') stopDesktopTermLoop();
-          stopScreenLoop();
           if (typeof stopMediaLoop === 'function') stopMediaLoop();
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
-          if (target === 'files') {
-            loadFiles();
-          }
         }
       }
     });
@@ -750,160 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ----------------------------------------------------
-  // 2. Live Desktop Screen Mirror & Remote Control
-  // ----------------------------------------------------
-  const screenImg = document.getElementById('screenImg');
-  const screenCanvasBox = document.getElementById('screenCanvasBox');
-  const screenRipple = document.getElementById('screenRipple');
-  const screenRefreshRate = document.getElementById('screenRefreshRate');
-  const btnScreenManualRefresh = document.getElementById('btnScreenManualRefresh');
-  const screenTextInput = document.getElementById('screenTextInput');
-  const btnScreenSendText = document.getElementById('btnScreenSendText');
-
-  let screenLoopTimer = null;
-  let currentClickButton = '1'; // '1', '3', or 'double'
-  let isFetchingFrame = false;
-
-  function refreshScreenFrame() {
-    if (isFetchingFrame) return;
-    isFetchingFrame = true;
-
-    const img = new Image();
-    const ts = Date.now();
-    img.src = `/api/screen?token=${encodeURIComponent(authToken)}&t=${ts}&w=960&q=55`;
-
-    img.onload = () => {
-      screenImg.src = img.src;
-      isFetchingFrame = false;
-    };
-
-    img.onerror = () => {
-      isFetchingFrame = false;
-    };
-  }
-
-  function startScreenLoop() {
-    stopScreenLoop();
-    const rate = parseInt(screenRefreshRate.value, 10);
-    if (rate > 0) {
-      screenLoopTimer = setInterval(refreshScreenFrame, rate);
-    }
-  }
-
-  function stopScreenLoop() {
-    if (screenLoopTimer) {
-      clearInterval(screenLoopTimer);
-      screenLoopTimer = null;
-    }
-  }
-
-  if (screenRefreshRate) {
-    screenRefreshRate.addEventListener('change', () => {
-      const pane = document.getElementById('tab-screen');
-      if (pane && pane.classList.contains('active')) {
-        startScreenLoop();
-      }
-    });
-  }
-
-  if (btnScreenManualRefresh) {
-    btnScreenManualRefresh.addEventListener('click', () => {
-      refreshScreenFrame();
-    });
-  }
-
-  // Click Mode Selection
-  const clickModeBtns = document.querySelectorAll('.click-mode-btn');
-  clickModeBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      clickModeBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentClickButton = btn.getAttribute('data-btn');
-    });
-  });
-
-  // Interactive Touch-to-Click on Screen Canvas
-  if (screenCanvasBox) {
-    screenCanvasBox.addEventListener('click', async (e) => {
-    if (!screenImg || !screenImg.naturalWidth) return;
-
-    const rect = screenImg.getBoundingClientRect();
-    const clientX = e.clientX;
-    const clientY = e.clientY;
-
-    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-      return;
-    }
-
-    const normX = (clientX - rect.left) / rect.width;
-    const normY = (clientY - rect.top) / rect.height;
-
-    // Show ripple animation
-    const relX = clientX - rect.left;
-    const relY = clientY - rect.top;
-    screenRipple.style.left = `${relX}px`;
-    screenRipple.style.top = `${relY}px`;
-    screenRipple.classList.add('active');
-    setTimeout(() => screenRipple.classList.remove('active'), 250);
-
-    try {
-      await fetch(`/api/screen/click?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          norm_x: normX,
-          norm_y: normY,
-          button: currentClickButton
-        })
-      });
-
-      // Quick visual refresh after click
-      setTimeout(refreshScreenFrame, 150);
-    } catch (err) {}
-    });
-  }
-
-  // Screen Virtual Keyboard Keys
-  document.querySelectorAll('.s-key[data-skey]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const key = btn.getAttribute('data-skey');
-      try {
-        await fetch(`/api/screen/key?token=${encodeURIComponent(authToken)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: key })
-        });
-        setTimeout(refreshScreenFrame, 150);
-      } catch (e) {}
-    });
-  });
-
-  // Send Typed Text to Active PC Window
-  async function sendScreenText() {
-    if (!screenTextInput) return;
-    const text = screenTextInput.value;
-    if (!text) return;
-    try {
-      await fetch(`/api/screen/key?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text })
-      });
-      screenTextInput.value = '';
-      showToast('Text typed on PC');
-      setTimeout(refreshScreenFrame, 200);
-    } catch (e) {
-      showToast('Failed to type text');
-    }
-  }
-
-  if (btnScreenSendText) btnScreenSendText.addEventListener('click', sendScreenText);
-  if (screenTextInput) {
-    screenTextInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendScreenText();
-    });
-  }
+  // (Screen Mirror module removed per user request)
 
   // ----------------------------------------------------
   // 3. Universal Shared Clipboard
@@ -986,13 +826,301 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------
-  // 4. AirDrop File Drop & Downloads
+  // 4. File Hub & Interactive PC Directory Browser
   // ----------------------------------------------------
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
-  const fileList = document.getElementById('pcFilesList');
   const uploadProgContainer = document.getElementById('uploadProgress');
   const progressBar = document.getElementById('progressBarFill');
+  const uploadStatusText = document.getElementById('uploadStatusText');
+  const currentTargetPathDisplay = document.getElementById('currentTargetPathDisplay');
+  const targetDirBadge = document.getElementById('targetDirBadge');
+  const uploadDestHint = document.getElementById('uploadDestHint');
+  const btnSetAsDefaultDir = document.getElementById('btnSetAsDefaultDir');
+  const btnBookmarkCurrentDir = document.getElementById('btnBookmarkCurrentDir');
+  const quickShortcutsBar = document.getElementById('quickShortcutsBar');
+  const dirBreadcrumbs = document.getElementById('dirBreadcrumbs');
+  const browserFoldersGrid = document.getElementById('browserFoldersGrid');
+  const pcFilesList = document.getElementById('pcFilesList');
+  const btnBrowseUp = document.getElementById('btnBrowseUp');
+  const btnCreateNewFolder = document.getElementById('btnCreateNewFolder');
+  const btnRefreshBrowser = document.getElementById('btnRefreshBrowser');
+
+  let currentBrowsePath = '';
+  let defaultSaveDir = '';
+  let parentBrowsePath = null;
+
+  async function loadDirectory(targetPath) {
+    const url = `/api/files/browse?token=${encodeURIComponent(authToken)}` + 
+                (targetPath ? `&path=${encodeURIComponent(targetPath)}` : '');
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        currentBrowsePath = data.current_path;
+        defaultSaveDir = data.default_save_dir;
+        parentBrowsePath = data.parent_path;
+
+        if (currentTargetPathDisplay) currentTargetPathDisplay.textContent = currentBrowsePath;
+        if (uploadDestHint) uploadDestHint.textContent = `Saving to: ${currentBrowsePath.split('/').pop() || currentBrowsePath}`;
+
+        // Badge & Make Default Button
+        if (data.is_default) {
+          if (targetDirBadge) {
+            targetDirBadge.textContent = '⭐ Default Save Location';
+            targetDirBadge.className = 'status-pill status-active';
+          }
+          if (btnSetAsDefaultDir) {
+            btnSetAsDefaultDir.disabled = true;
+            btnSetAsDefaultDir.textContent = '✓ Default Location';
+            btnSetAsDefaultDir.classList.remove('highlight');
+          }
+        } else {
+          if (targetDirBadge) {
+            targetDirBadge.textContent = 'Active Folder';
+            targetDirBadge.className = 'status-pill status-idle';
+          }
+          if (btnSetAsDefaultDir) {
+            btnSetAsDefaultDir.disabled = false;
+            btnSetAsDefaultDir.textContent = '⭐ Save as Default Location';
+            btnSetAsDefaultDir.classList.add('highlight');
+          }
+        }
+
+        // Render Quick Places
+        renderQuickPlaces(data.quick_shortcuts || [], data.saved_places || []);
+
+        // Render Breadcrumbs
+        renderBreadcrumbs(currentBrowsePath);
+
+        // Render Folders Grid
+        renderFolders(data.folders || []);
+
+        // Render Files List
+        renderFiles(data.files || []);
+
+        // Parent button state
+        if (btnBrowseUp) btnBrowseUp.disabled = !parentBrowsePath;
+      }
+    } catch (e) {
+      if (pcFilesList) pcFilesList.innerHTML = '<li class="file-item empty">Error loading folder contents</li>';
+    }
+  }
+
+  function renderBreadcrumbs(path) {
+    if (!dirBreadcrumbs) return;
+    dirBreadcrumbs.innerHTML = '';
+    const parts = path.split('/').filter(Boolean);
+    
+    // Root link
+    const rootSpan = document.createElement('span');
+    rootSpan.className = 'breadcrumb-crumb';
+    rootSpan.textContent = '/';
+    rootSpan.addEventListener('click', () => loadDirectory('/'));
+    dirBreadcrumbs.appendChild(rootSpan);
+
+    let accumulated = '';
+    parts.forEach((p, idx) => {
+      accumulated += '/' + p;
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = ' › ';
+      dirBreadcrumbs.appendChild(sep);
+
+      const crumb = document.createElement('span');
+      crumb.className = 'breadcrumb-crumb' + (idx === parts.length - 1 ? ' active' : '');
+      crumb.textContent = p;
+      const thisPath = accumulated;
+      crumb.addEventListener('click', () => loadDirectory(thisPath));
+      dirBreadcrumbs.appendChild(crumb);
+    });
+  }
+
+  function renderQuickPlaces(shortcuts, bookmarks) {
+    if (!quickShortcutsBar) return;
+    quickShortcutsBar.innerHTML = '';
+
+    shortcuts.forEach(s => {
+      const chip = document.createElement('button');
+      chip.className = 'quick-place-chip' + (s.path === currentBrowsePath ? ' active' : '');
+      chip.innerHTML = `<span>${s.icon || '📁'}</span><span>${escapeHtml(s.name)}</span>`;
+      chip.addEventListener('click', () => loadDirectory(s.path));
+      quickShortcutsBar.appendChild(chip);
+    });
+
+    bookmarks.forEach(b => {
+      if (shortcuts.some(s => s.path === b)) return;
+      const name = b.split('/').pop() || b;
+      const chip = document.createElement('button');
+      chip.className = 'quick-place-chip' + (b === currentBrowsePath ? ' active' : '');
+      chip.innerHTML = `<span>🔖</span><span>${escapeHtml(name)}</span>`;
+      chip.title = b;
+      chip.addEventListener('click', () => loadDirectory(b));
+      quickShortcutsBar.appendChild(chip);
+    });
+  }
+
+  function renderFolders(folders) {
+    if (!browserFoldersGrid) return;
+    browserFoldersGrid.innerHTML = '';
+    if (folders.length === 0) {
+      browserFoldersGrid.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:6px;">No subdirectories found</div>';
+      return;
+    }
+
+    folders.forEach(f => {
+      const btn = document.createElement('button');
+      btn.className = 'folder-card-btn';
+      btn.innerHTML = `<span class="folder-card-icon">📁</span><span class="folder-card-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>`;
+      btn.addEventListener('click', () => loadDirectory(f.path));
+      browserFoldersGrid.appendChild(btn);
+    });
+  }
+
+  function renderFiles(files) {
+    if (!pcFilesList) return;
+    pcFilesList.innerHTML = '';
+    if (files.length === 0) {
+      pcFilesList.innerHTML = '<li class="file-item empty">No files in this folder</li>';
+      return;
+    }
+
+    files.forEach(f => {
+      const li = document.createElement('li');
+      li.className = 'file-item';
+      li.innerHTML = `
+        <div class="file-info">
+          <span class="file-name">${escapeHtml(f.name)}</span>
+          <span class="file-meta">${f.size} • ${f.time}</span>
+        </div>
+        <a href="/api/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(authToken)}&dir=${encodeURIComponent(currentBrowsePath)}" class="btn-download" download>Download</a>
+      `;
+      pcFilesList.appendChild(li);
+    });
+  }
+
+  // Set current folder as permanent default save location
+  if (btnSetAsDefaultDir) {
+    btnSetAsDefaultDir.addEventListener('click', async () => {
+      if (!currentBrowsePath) return;
+      try {
+        const res = await fetch(`/api/files/browse?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_default', path: currentBrowsePath })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`⭐ Saved as default save location!`);
+          loadDirectory(currentBrowsePath);
+        } else {
+          showToast('Failed to save default location');
+        }
+      } catch (e) {
+        showToast('Error saving default location');
+      }
+    });
+  }
+
+  // Bookmark folder
+  if (btnBookmarkCurrentDir) {
+    btnBookmarkCurrentDir.addEventListener('click', async () => {
+      if (!currentBrowsePath) return;
+      try {
+        const res = await fetch(`/api/files/browse?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_place', path: currentBrowsePath })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`🔖 Bookmarked to Quick Places!`);
+          loadDirectory(currentBrowsePath);
+        }
+      } catch (e) {}
+    });
+  }
+
+  if (btnBrowseUp) {
+    btnBrowseUp.addEventListener('click', () => {
+      if (parentBrowsePath) loadDirectory(parentBrowsePath);
+    });
+  }
+
+  if (btnRefreshBrowser) {
+    btnRefreshBrowser.addEventListener('click', () => loadDirectory(currentBrowsePath));
+  }
+
+  if (btnCreateNewFolder) {
+    btnCreateNewFolder.addEventListener('click', async () => {
+      const folderName = prompt('Enter new folder name:');
+      if (!folderName || !folderName.trim()) return;
+      try {
+        const res = await fetch(`/api/files/browse?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mkdir', parent: currentBrowsePath, name: folderName.trim() })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✓ Created folder: ${folderName}`);
+          loadDirectory(currentBrowsePath);
+        } else {
+          showToast(data.message || 'Could not create folder');
+        }
+      } catch (e) {
+        showToast('Error creating folder');
+      }
+    });
+  }
+
+  // Upload handler saving directly to currentBrowsePath
+  function uploadFiles(files) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    if (currentBrowsePath) {
+      formData.append('target_dir', currentBrowsePath);
+    }
+
+    if (uploadProgContainer) uploadProgContainer.style.display = 'block';
+    if (progressBar) progressBar.style.width = '10%';
+    if (uploadStatusText) uploadStatusText.textContent = 'Uploading to PC...';
+
+    const xhr = new XMLHttpRequest();
+    const targetUrl = `/api/upload?token=${encodeURIComponent(authToken)}` + 
+                     (currentBrowsePath ? `&target_dir=${encodeURIComponent(currentBrowsePath)}` : '');
+    xhr.open('POST', targetUrl, true);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && progressBar) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        progressBar.style.width = `${pct}%`;
+        if (uploadStatusText) uploadStatusText.textContent = `Uploading ${pct}%`;
+      }
+    };
+
+    xhr.onload = () => {
+      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
+      if (progressBar) progressBar.style.width = '0%';
+      if (xhr.status === 200) {
+        const folderName = currentBrowsePath.split('/').pop() || currentBrowsePath;
+        showToast(`✓ File(s) saved to ${folderName}`);
+        loadDirectory(currentBrowsePath);
+      } else {
+        showToast('Upload failed');
+      }
+      if (fileInput) fileInput.value = '';
+    };
+
+    xhr.onerror = () => {
+      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
+      showToast('Network error during upload');
+    };
+
+    xhr.send(formData);
+  }
 
   if (dropZone && fileInput) {
     dropZone.addEventListener('click', () => fileInput.click());
@@ -1025,99 +1153,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function uploadFiles(files) {
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-      formData.append('files', files[i]);
-    }
-
-    if (uploadProgContainer) uploadProgContainer.style.display = 'block';
-    if (progressBar) progressBar.style.width = '10%';
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/upload?token=${encodeURIComponent(authToken)}`, true);
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && progressBar) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        progressBar.style.width = `${pct}%`;
-      }
-    };
-
-    xhr.onload = () => {
-      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
-      if (progressBar) progressBar.style.width = '0%';
-      if (xhr.status === 200) {
-        showToast('✓ File(s) saved to PC ~/Downloads');
-        loadFiles();
-      } else {
-        showToast('Upload failed');
-      }
-      if (fileInput) fileInput.value = '';
-    };
-
-    xhr.onerror = () => {
-      if (uploadProgContainer) uploadProgContainer.style.display = 'none';
-      showToast('Network error during upload');
-    };
-
-    xhr.send(formData);
-  }
-
-  function loadFiles() {
-    if (!fileList) return;
-    fetch(`/api/files?token=${encodeURIComponent(authToken)}`)
-      .then(res => res.json())
-      .then(data => {
-        fileList.innerHTML = '';
-        if (!data.files || data.files.length === 0) {
-          fileList.innerHTML = '<li class="file-item empty">No files found in ~/Downloads</li>';
-          return;
-        }
-
-        data.files.forEach(f => {
-          const li = document.createElement('li');
-          li.className = 'file-item';
-          li.innerHTML = `
-            <div class="file-info">
-              <span class="file-name">${escapeHtml(f.name)}</span>
-              <span class="file-meta">${f.size} • ${f.time}</span>
-            </div>
-            <a href="/api/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(authToken)}" class="btn-download" download>Download</a>
-          `;
-          fileList.appendChild(li);
-        });
-      })
-      .catch(() => {
-        fileList.innerHTML = '<li class="file-item empty">Failed to load files</li>';
-      });
-  }
-
-  const btnRefreshFiles = document.getElementById('btnRefreshFiles');
-  if (btnRefreshFiles) btnRefreshFiles.addEventListener('click', loadFiles);
-
   // ----------------------------------------------------
-  // 5. Quick System Actions
+  // 5. Quick App Actions
   // ----------------------------------------------------
-  document.querySelectorAll('.action-card[data-action]').forEach(btn => {
+  document.querySelectorAll('.action-card[data-app]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const action = btn.getAttribute('data-action');
-      fetch('/api/action', {
+      const app = btn.getAttribute('data-app');
+      fetch(`/api/app/launch?token=${encodeURIComponent(authToken)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: action })
+        body: JSON.stringify({ app })
       })
       .then(res => res.json())
       .then(res => {
-        showToast(res.message || 'Action executed');
+        showToast(res.message || 'App launched');
       })
-      .catch(() => showToast('Action failed'));
+      .catch(() => showToast('Launch failed'));
     });
   });
 
   // ----------------------------------------------------
-  // 6. Remote Connectivity & SSH Controller
+  // 6. Tailscale Mesh Control & SSH Info
   // ----------------------------------------------------
+  const tailscaleToggle = document.getElementById('tailscaleToggle');
+  const tailscaleStatusBadge = document.getElementById('tailscaleStatusBadge');
+  const tailscaleToggleHint = document.getElementById('tailscaleToggleHint');
   const remoteTailscaleIp = document.getElementById('remoteTailscaleIp');
   const remoteSshCmd = document.getElementById('remoteSshCmd');
   const btnCopyTailscaleUrl = document.getElementById('btnCopyTailscaleUrl');
@@ -1125,46 +1185,102 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRefreshTunnelStatus = document.getElementById('btnRefreshTunnelStatus');
   let currentTailscaleIp = '';
   let currentSshCmd = '';
+  let isTogglingTailscale = false;
 
   async function loadTunnelStatus() {
     try {
       const res = await fetch(`/api/tunnel?token=${encodeURIComponent(authToken)}`);
       const data = await res.json();
       if (data.status === 'ok') {
-        if (data.tailscale_ip) {
-          currentTailscaleIp = data.tailscale_ip;
+        const isRunning = !!data.tailscale_running;
+        currentTailscaleIp = data.tailscale_ip || '';
+
+        if (tailscaleToggle && !isTogglingTailscale) {
+          tailscaleToggle.checked = isRunning;
+        }
+
+        if (isRunning) {
+          if (tailscaleStatusBadge) {
+            tailscaleStatusBadge.textContent = 'Active';
+            tailscaleStatusBadge.className = 'status-pill status-active';
+          }
+          if (tailscaleToggleHint) {
+            tailscaleToggleHint.textContent = 'Connected to Tailscale Mesh';
+          }
           if (remoteTailscaleIp) {
             remoteTailscaleIp.textContent = `${data.tailscale_ip} (Active)`;
             remoteTailscaleIp.style.color = '#34c759';
           }
           if (btnCopyTailscaleUrl) btnCopyTailscaleUrl.style.display = 'inline-block';
         } else {
-          currentTailscaleIp = '';
+          if (tailscaleStatusBadge) {
+            tailscaleStatusBadge.textContent = 'Stopped / Off';
+            tailscaleStatusBadge.className = 'status-pill status-idle';
+          }
+          if (tailscaleToggleHint) {
+            tailscaleToggleHint.textContent = 'Tailscale is turned off';
+          }
           if (remoteTailscaleIp) {
             remoteTailscaleIp.textContent = 'Inactive / Not Connected';
-            remoteTailscaleIp.style.color = '#8e95a5';
+            remoteTailscaleIp.style.color = 'var(--text-muted)';
           }
           if (btnCopyTailscaleUrl) btnCopyTailscaleUrl.style.display = 'none';
         }
 
-        if (data.ssh && data.ssh.cmd_tmux_remote) {
-          currentSshCmd = data.ssh.cmd_tmux_remote;
-        } else if (data.ssh && data.ssh.cmd_tailscale) {
-          currentSshCmd = data.ssh.cmd_tailscale;
-        } else {
-          currentSshCmd = `ssh ${data.ssh?.user || 'killindodo'}@${data.tailscale_ip || data.local_ip}`;
+        if (data.ssh) {
+          currentSshCmd = data.ssh.cmd_tailscale || (data.local_ip ? `ssh ${data.ssh.user}@${data.local_ip}` : 'ssh unavailable');
+          if (remoteSshCmd) remoteSshCmd.textContent = currentSshCmd;
         }
-        if (remoteSshCmd) remoteSshCmd.textContent = currentSshCmd;
       }
     } catch (e) {}
+  }
+
+  if (tailscaleToggle) {
+    tailscaleToggle.addEventListener('change', async () => {
+      if (isTogglingTailscale) return;
+      isTogglingTailscale = true;
+      const wantEnable = tailscaleToggle.checked;
+
+      if (tailscaleStatusBadge) {
+        tailscaleStatusBadge.textContent = wantEnable ? 'Starting...' : 'Stopping...';
+        tailscaleStatusBadge.className = 'status-pill status-idle';
+      }
+
+      try {
+        const res = await fetch(`/api/tailscale/toggle?token=${encodeURIComponent(authToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enable: wantEnable })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(wantEnable ? '✓ Tailscale Connected' : '✓ Tailscale Stopped');
+        } else {
+          tailscaleToggle.checked = !wantEnable;
+          if (data.code === 'OPERATOR_REQUIRED') {
+            showToast('⚠️ Permission required on PC', 4000);
+            alert("Tailscale Operator Permission Required:\n\nTo toggle Tailscale on/off without entering your root password, run this command once in your Linux PC terminal:\n\nsudo tailscale set --operator=$USER");
+          } else {
+            showToast(data.message || 'Tailscale toggle failed');
+          }
+        }
+      } catch (e) {
+        tailscaleToggle.checked = !wantEnable;
+        showToast('Error communicating with Tailscale service');
+      } finally {
+        isTogglingTailscale = false;
+        loadTunnelStatus();
+      }
+    });
   }
 
   if (btnCopyTailscaleUrl) {
     btnCopyTailscaleUrl.addEventListener('click', () => {
       if (currentTailscaleIp) {
-        const url = `http://${currentTailscaleIp}:8080/?token=${authToken}`;
+        const port = window.location.port || '8080';
+        const url = `http://${currentTailscaleIp}:${port}/?token=${authToken}`;
         navigator.clipboard.writeText(url);
-        showToast('✓ Tailscale Web App Link Copied!');
+        showToast(`✓ Tailscale Link Copied!`);
       } else {
         showToast('Tailscale is not active on this PC');
       }
@@ -1181,7 +1297,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnRefreshTunnelStatus) {
-    btnRefreshTunnelStatus.addEventListener('click', loadTunnelStatus);
+    btnRefreshTunnelStatus.addEventListener('click', () => {
+      loadTunnelStatus();
+      showToast('🔄 Tailscale status refreshed');
+    });
   }
 
   // ----------------------------------------------------
@@ -1189,204 +1308,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
-
-  // ----------------------------------------------------
-  // Submode: Screen Mirror vs Virtual Trackpad
-  // ----------------------------------------------------
-  window.activeScreenSubmode = 'mirror';
-  const btnSubModeMirror = document.getElementById('btnSubModeMirror');
-  const btnSubModeTrackpad = document.getElementById('btnSubModeTrackpad');
-  const screenMirrorSubpanel = document.getElementById('screenMirrorSubpanel');
-  const trackpadSubpanel = document.getElementById('trackpadSubpanel');
-
-  if (btnSubModeMirror && btnSubModeTrackpad) {
-    btnSubModeMirror.addEventListener('click', () => {
-      window.activeScreenSubmode = 'mirror';
-      btnSubModeMirror.classList.add('active');
-      btnSubModeTrackpad.classList.remove('active');
-      if (screenMirrorSubpanel) screenMirrorSubpanel.style.display = 'block';
-      if (trackpadSubpanel) trackpadSubpanel.style.display = 'none';
-      startScreenLoop();
-      refreshScreenFrame();
-    });
-
-    btnSubModeTrackpad.addEventListener('click', () => {
-      window.activeScreenSubmode = 'trackpad';
-      btnSubModeTrackpad.classList.add('active');
-      btnSubModeMirror.classList.remove('active');
-      if (screenMirrorSubpanel) screenMirrorSubpanel.style.display = 'none';
-      if (trackpadSubpanel) trackpadSubpanel.style.display = 'block';
-      stopScreenLoop();
-    });
-  }
-
-  // Trackpad Touch Gestures & Sensitivity
-  const trackpadSurface = document.getElementById('trackpadSurface');
-  const trackpadPointer = document.getElementById('trackpadPointer');
-  const tpSensSlider = document.getElementById('tpSensSlider');
-  const tpSensVal = document.getElementById('tpSensVal');
-
-  let tpSensitivity = parseFloat(localStorage.getItem('continuity_tp_sens')) || 1.5;
-
-  if (tpSensSlider) {
-    tpSensSlider.value = tpSensitivity;
-    if (tpSensVal) tpSensVal.textContent = `${tpSensitivity.toFixed(1)}x`;
-    tpSensSlider.addEventListener('input', () => {
-      tpSensitivity = parseFloat(tpSensSlider.value) || 1.5;
-      if (tpSensVal) tpSensVal.textContent = `${tpSensitivity.toFixed(1)}x`;
-      localStorage.setItem('continuity_tp_sens', tpSensitivity.toString());
-    });
-  }
-
-  let tpTouchStartX = 0;
-  let tpTouchStartY = 0;
-  let tpLastX = 0;
-  let tpLastY = 0;
-  let tpTouchStartTime = 0;
-  let tpTouchCount = 1;
-  let tpHasMoved = false;
-  let tpThrottled = false;
-
-  if (trackpadSurface) {
-    trackpadSurface.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      tpTouchStartTime = Date.now();
-      tpHasMoved = false;
-      tpTouchCount = e.touches.length;
-
-      if (e.touches.length === 1) {
-        tpTouchStartX = e.touches[0].clientX;
-        tpTouchStartY = e.touches[0].clientY;
-        tpLastX = tpTouchStartX;
-        tpLastY = tpTouchStartY;
-
-        if (trackpadPointer) {
-          const rect = trackpadSurface.getBoundingClientRect();
-          trackpadPointer.style.left = `${tpTouchStartX - rect.left}px`;
-          trackpadPointer.style.top = `${tpTouchStartY - rect.top}px`;
-          trackpadPointer.style.display = 'block';
-        }
-      } else if (e.touches.length === 2) {
-        tpTouchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        tpLastY = tpTouchStartY;
-        if (trackpadPointer) trackpadPointer.style.display = 'none';
-      }
-    }, { passive: false });
-
-    trackpadSurface.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-
-      if (e.touches.length === 1) {
-        const curX = e.touches[0].clientX;
-        const curY = e.touches[0].clientY;
-        const dx = (curX - tpLastX) * tpSensitivity;
-        const dy = (curY - tpLastY) * tpSensitivity;
-
-        if (Math.abs(curX - tpTouchStartX) > 4 || Math.abs(curY - tpTouchStartY) > 4) {
-          tpHasMoved = true;
-        }
-
-        tpLastX = curX;
-        tpLastY = curY;
-
-        if (trackpadPointer) {
-          const rect = trackpadSurface.getBoundingClientRect();
-          trackpadPointer.style.left = `${curX - rect.left}px`;
-          trackpadPointer.style.top = `${curY - rect.top}px`;
-          trackpadPointer.style.display = 'block';
-        }
-
-        if (!tpThrottled && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) {
-          tpThrottled = true;
-          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'move', dx: Math.round(dx), dy: Math.round(dy) })
-          }).finally(() => {
-            setTimeout(() => { tpThrottled = false; }, 20);
-          });
-        }
-      } else if (e.touches.length === 2) {
-        tpHasMoved = true;
-        if (trackpadPointer) trackpadPointer.style.display = 'none';
-        const curY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const diffY = curY - tpLastY;
-        tpLastY = curY;
-
-        if (!tpThrottled && Math.abs(diffY) > 8) {
-          tpThrottled = true;
-          const direction = diffY > 0 ? 'up' : 'down';
-          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'scroll', direction, steps: 2 })
-          }).finally(() => {
-            setTimeout(() => { tpThrottled = false; }, 40);
-          });
-        }
-      }
-    }, { passive: false });
-
-    trackpadSurface.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      if (trackpadPointer) trackpadPointer.style.display = 'none';
-
-      const duration = Date.now() - tpTouchStartTime;
-      if (!tpHasMoved && duration < 350) {
-        if (tpTouchCount === 1) {
-          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'click', button: '1' })
-          });
-          showToast('Left Click');
-        } else if (tpTouchCount === 2) {
-          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'click', button: '3' })
-          });
-          showToast('Right Click');
-        }
-      }
-    }, { passive: false });
-  }
-
-  // Trackpad Buttons
-  const btnTpLeft = document.getElementById('btnTrackpadLeft');
-  const btnTpMiddle = document.getElementById('btnTrackpadMiddle');
-  const btnTpRight = document.getElementById('btnTrackpadRight');
-
-  if (btnTpLeft) {
-    btnTpLeft.addEventListener('click', () => {
-      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'click', button: '1' })
-      });
-      showToast('Left Click');
-    });
-  }
-  if (btnTpMiddle) {
-    btnTpMiddle.addEventListener('click', () => {
-      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'click', button: '2' })
-      });
-      showToast('Middle Click');
-    });
-  }
-  if (btnTpRight) {
-    btnTpRight.addEventListener('click', () => {
-      fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'click', button: '3' })
-      });
-      showToast('Right Click');
-    });
   }
 
   // ----------------------------------------------------
@@ -1800,6 +1721,7 @@ document.addEventListener('DOMContentLoaded', () => {
     connectTerminal(currentSession);
     connectClipboard();
     loadTunnelStatus();
+    loadDirectory();
   }
 
   // Load Host Info & Validate stored token on startup
