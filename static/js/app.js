@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (typeof stopVitalsLoop === 'function') stopVitalsLoop();
           setTimeout(() => {
             window.fitAddon.fit();
-            if (termWs && termWs.readyState === WebSocket.OPEN) {
+            if (termWs && termWs.readyState === WebSocket.OPEN && term) {
               termWs.send(JSON.stringify({
                 type: 'resize',
                 cols: term.cols,
@@ -150,32 +150,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Terminal Setup (xterm.js + Shared Tmux Sessions)
   // ----------------------------------------------------
   const termContainer = document.getElementById('terminal');
-  const term = new Terminal({
-    cursorBlink: true,
-    fontFamily: '"Cascadia Code", "Fira Code", monospace',
-    fontSize: 13,
-    lineHeight: 1.2,
-    theme: {
-      background: '#0c0e14',
-      foreground: '#e4e7ee',
-      cursor: '#00d2ff',
-      selectionBackground: '#264f78',
-      black: '#1a1d26',
-      red: '#ff5555',
-      green: '#50fa7b',
-      yellow: '#f1fa8c',
-      blue: '#bd93f9',
-      magenta: '#ff79c6',
-      cyan: '#8be9fd',
-      white: '#f8f8f2'
-    }
-  });
+  let term = null;
+  let fitAddon = null;
 
-  const fitAddon = new FitAddon.FitAddon();
-  window.fitAddon = fitAddon;
-  term.loadAddon(fitAddon);
-  term.open(termContainer);
-  fitAddon.fit();
+  try {
+    term = new Terminal({
+      cursorBlink: true,
+      fontFamily: '"Cascadia Code", "Fira Code", monospace',
+      fontSize: 13,
+      lineHeight: 1.2,
+      theme: {
+        background: '#0c0e14',
+        foreground: '#e4e7ee',
+        cursor: '#00d2ff',
+        selectionBackground: '#264f78',
+        black: '#1a1d26',
+        red: '#ff5555',
+        green: '#50fa7b',
+        yellow: '#f1fa8c',
+        blue: '#bd93f9',
+        magenta: '#ff79c6',
+        cyan: '#8be9fd',
+        white: '#f8f8f2'
+      }
+    });
+    fitAddon = new FitAddon.FitAddon();
+    window.fitAddon = fitAddon;
+    term.loadAddon(fitAddon);
+    if (termContainer) {
+      term.open(termContainer);
+      fitAddon.fit();
+    }
+  } catch (e) {
+    console.error('[Continuity] xterm init error:', e);
+    // Terminal init failed but we MUST continue so PIN modal works
+  }
 
   let termWs = null;
   let currentSession = 'main';
@@ -199,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
       termWs = null;
     }
 
-    term.write(`\r\n\x1b[36m[*] Attaching to Terminal session: [${currentSession}]...\x1b[0m\r\n`);
+    if (term) term.write(`\r\n\x1b[36m[*] Attaching to Terminal session: [${currentSession}]...\x1b[0m\r\n`);
     const termUrl = `${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(authToken)}&session=${encodeURIComponent(currentSession)}`;
     termWs = new WebSocket(termUrl);
     termWs.binaryType = 'arraybuffer';
@@ -208,11 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
       reconnectAttempts = 0;
       authRejected = false;
       setStatus(true, 'Connected');
-      fitAddon.fit();
+      if (fitAddon) fitAddon.fit();
       termWs.send(JSON.stringify({
         type: 'resize',
-        cols: term.cols,
-        rows: term.rows
+        cols: term ? term.cols : 80,
+        rows: term ? term.rows : 24
       }));
       startPingHeartbeat();
     };
@@ -222,13 +231,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const msg = JSON.parse(evt.data);
           if (msg.type === 'output') {
-            term.write(msg.data);
+            if (term) term.write(msg.data);
           } else if (msg.type === 'pong') {
             const rtt = Date.now() - (msg.t || Date.now());
             setStatus(true, `Connected (${rtt}ms)`);
           }
         } catch (e) {
-          term.write(evt.data);
+          if (term) term.write(evt.data);
         }
       } else {
         // Check for unauthorized message in binary data
@@ -242,14 +251,12 @@ document.addEventListener('DOMContentLoaded', () => {
           showPinModal();
           return;
         }
-        term.write(u8);
+        if (term) term.write(u8);
       }
     };
 
     termWs.onclose = (evt) => {
       stopPingHeartbeat();
-      // Code 1000 = normal close (server rejected auth immediately)
-      // If we closed right after open without a successful message, treat as auth fail
       if (authRejected) {
         setStatus(false, 'PIN Required');
         return;
@@ -264,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function scheduleReconnect() {
-    if (authRejected) return; // Never reconnect after auth failure
+    if (authRejected) return;
     if (reconnectTimer) return;
     reconnectAttempts++;
     const delay = Math.min(8000, 1500 * Math.pow(1.3, reconnectAttempts - 1));
@@ -304,11 +311,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  term.onData((data) => {
-    if (termWs && termWs.readyState === WebSocket.OPEN) {
-      termWs.send(JSON.stringify({ type: 'input', data: data }));
-    }
-  });
+  if (term) {
+    term.onData((data) => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(JSON.stringify({ type: 'input', data: data }));
+      }
+    });
+  }
 
   // Mobile Keyboard Helper Keys
   document.querySelectorAll('.kbtn[data-key]').forEach(btn => {
@@ -317,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (termWs && termWs.readyState === WebSocket.OPEN) {
         termWs.send(JSON.stringify({ type: 'input', data: key }));
       }
-      term.focus();
+      if (term) term.focus();
     });
   });
 
@@ -326,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnClearTerm').addEventListener('click', () => {
-    term.clear();
+    if (term) term.clear();
   });
 
   const btnMainTermFullscreen = document.getElementById('btnMainTermFullscreen');
@@ -339,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.exitFullscreen().catch(() => {});
         btnMainTermFullscreen.textContent = '⛶';
       }
-      setTimeout(() => fitAddon.fit(), 300);
+      if (fitAddon) setTimeout(() => fitAddon.fit(), 300);
     });
   }
 
@@ -483,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => {
     if (fitAddon) {
       fitAddon.fit();
-      if (termWs && termWs.readyState === WebSocket.OPEN) {
+      if (termWs && termWs.readyState === WebSocket.OPEN && term) {
         termWs.send(JSON.stringify({
           type: 'resize',
           cols: term.cols,
