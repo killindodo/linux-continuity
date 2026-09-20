@@ -67,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
           authToken = data.token;
           localStorage.setItem('continuity_token', authToken);
           hidePinModal();
+          // Reset all auth-rejection flags before reconnecting
+          authRejected = false;
+          reconnectAttempts = 0;
+          if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
           initAppConnections();
           showToast('✓ Device Unlocked');
         } else {
@@ -180,7 +184,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let pingIntervalTimer = null;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
+  // Flag to stop reconnect loop if auth was rejected
+  let authRejected = false;
+
   function connectTerminal(sessionName) {
+    if (authRejected) return; // Don't reconnect after auth failure
     if (sessionName) currentSession = sessionName;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
@@ -198,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     termWs.onopen = () => {
       reconnectAttempts = 0;
+      authRejected = false;
       setStatus(true, 'Connected');
       fitAddon.fit();
       termWs.send(JSON.stringify({
@@ -222,23 +231,40 @@ document.addEventListener('DOMContentLoaded', () => {
           term.write(evt.data);
         }
       } else {
+        // Check for unauthorized message in binary data
         const u8 = new Uint8Array(evt.data);
+        const text = new TextDecoder().decode(u8);
+        if (text.includes('Unauthorized')) {
+          authRejected = true;
+          setStatus(false, 'PIN Required');
+          localStorage.removeItem('continuity_token');
+          authToken = '';
+          showPinModal();
+          return;
+        }
         term.write(u8);
       }
     };
 
-    termWs.onclose = () => {
+    termWs.onclose = (evt) => {
       stopPingHeartbeat();
+      // Code 1000 = normal close (server rejected auth immediately)
+      // If we closed right after open without a successful message, treat as auth fail
+      if (authRejected) {
+        setStatus(false, 'PIN Required');
+        return;
+      }
       setStatus(false, 'Disconnected');
       scheduleReconnect();
     };
 
     termWs.onerror = () => {
-      setStatus(false, 'Conn Error');
+      if (!authRejected) setStatus(false, 'Conn Error');
     };
   }
 
   function scheduleReconnect() {
+    if (authRejected) return; // Never reconnect after auth failure
     if (reconnectTimer) return;
     reconnectAttempts++;
     const delay = Math.min(8000, 1500 * Math.pow(1.3, reconnectAttempts - 1));
@@ -1364,15 +1390,39 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTunnelStatus();
   }
 
-  // Load Host Info & Initialize Connection
+  // Load Host Info & Validate stored token on startup
   fetch('/api/info')
     .then(r => r.json())
-    .then(data => {
+    .then(async data => {
       if (data.hostname) document.getElementById('sysHost').textContent = data.hostname;
       if (data.ip) document.getElementById('sysIp').textContent = data.ip;
-      if (data.require_pin && !authToken) {
-        showPinModal();
+
+      if (data.require_pin) {
+        if (!authToken) {
+          // No stored token → show PIN modal immediately
+          setStatus(false, 'PIN Required');
+          showPinModal();
+          return;
+        }
+        // Validate the stored token (may be stale if server restarted)
+        try {
+          const authProbe = await fetch(`/api/system/stats?token=${encodeURIComponent(authToken)}`);
+          if (!authProbe.ok) {
+            // Stale/invalid token - clear and ask for PIN again
+            localStorage.removeItem('continuity_token');
+            authToken = '';
+            setStatus(false, 'Session Expired');
+            showPinModal();
+            return;
+          }
+          // Token still valid → connect normally
+          initAppConnections();
+        } catch (e) {
+          // Network error → try connecting anyway
+          initAppConnections();
+        }
       } else {
+        // PIN not required → connect immediately
         initAppConnections();
       }
     })

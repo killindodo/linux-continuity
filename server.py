@@ -156,6 +156,8 @@ class TerminalWebSocket(tornado.websocket.WebSocketHandler):
             pass
 
     def on_message(self, message):
+        if not hasattr(self, "session"):
+            return  # Auth was rejected; session was never created
         try:
             msg = json.loads(message)
             msg_type = msg.get("type")
@@ -451,6 +453,12 @@ class InfoHandler(tornado.web.RequestHandler):
 
 class SystemStatsHandler(tornado.web.RequestHandler):
     def get(self):
+        token = self.get_argument("token", None)
+        if not auth_mgr.is_authorized(token):
+            self.set_status(401)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"status": "error", "message": "Unauthorized"}))
+            return
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps(get_system_stats()))
 
