@@ -106,6 +106,15 @@ Inspect PC camera snapshots and monitor workstation microphone audio remotely:
 
 ---
 
+### Android Companion App & Mobile Interface
+
+| Connection Gateway | Virtual Trackpad | AirDrop File Transfers | Media & System Controls |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/apk_connect.png" width="220" /> | <img src="docs/screenshots/apk_trackpad.png" width="220" /> | <img src="docs/screenshots/apk_files.png" width="220" /> | <img src="docs/screenshots/apk_system.png" width="220" /> |
+| *Native APK pairing gateway* | *Haptic mouse & trackpad* | *Fast local file drop* | *MPRIS & system vitals* |
+
+---
+
 ## Key Features
 
 ### Zero-Trust Device Gatekeeper & Security

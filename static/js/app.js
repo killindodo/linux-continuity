@@ -151,6 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // URL Tab Parameter Support (e.g. ?tab=trackpad or ?tab=files)
+  const initialUrlTab = new URLSearchParams(window.location.search).get('tab');
+  if (initialUrlTab) {
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${initialUrlTab}"]`);
+    if (targetBtn) targetBtn.click();
+  }
+
   // ----------------------------------------------------
   // 1. Live PC Desktop Terminal Controller (Option A)
   // ----------------------------------------------------
