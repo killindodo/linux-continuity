@@ -160,9 +160,8 @@ class ContinuityWindow(QMainWindow):
         self.btn_grp_conn = QButtonGroup(self)
         self.btn_local = QPushButton("🏠 Local Wi-Fi")
         self.btn_tailscale = QPushButton("🌐 Tailscale VPN")
-        self.btn_tunnel = QPushButton("☁️ Public Remote Tunnel")
 
-        for b in [self.btn_local, self.btn_tailscale, self.btn_tunnel]:
+        for b in [self.btn_local, self.btn_tailscale]:
             b.setCheckable(True)
             b.setProperty("class", "mode-tab")
             self.btn_grp_conn.addButton(b)
@@ -171,7 +170,6 @@ class ContinuityWindow(QMainWindow):
         self.btn_local.setChecked(True)
         self.btn_local.clicked.connect(self._select_local_mode)
         self.btn_tailscale.clicked.connect(self._select_tailscale_mode)
-        self.btn_tunnel.clicked.connect(self._select_tunnel_mode)
 
         mode_box.addStretch()
         main_layout.addWidget(mode_card)

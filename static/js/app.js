@@ -877,83 +877,55 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // 6. Remote Connectivity & SSH Controller
   // ----------------------------------------------------
-  const remoteTunnelStatus = document.getElementById('remoteTunnelStatus');
   const remoteTailscaleIp = document.getElementById('remoteTailscaleIp');
   const remoteSshCmd = document.getElementById('remoteSshCmd');
-  const btnTogglePublicTunnel = document.getElementById('btnTogglePublicTunnel');
-  const btnCopyTunnelUrl = document.getElementById('btnCopyTunnelUrl');
+  const btnCopyTailscaleUrl = document.getElementById('btnCopyTailscaleUrl');
   const btnCopySshCmd = document.getElementById('btnCopySshCmd');
   const btnRefreshTunnelStatus = document.getElementById('btnRefreshTunnelStatus');
-  let currentTunnelUrl = '';
+  let currentTailscaleIp = '';
   let currentSshCmd = '';
 
   async function loadTunnelStatus() {
-    if (!remoteTunnelStatus) return;
     try {
       const res = await fetch(`/api/tunnel?token=${encodeURIComponent(authToken)}`);
       const data = await res.json();
       if (data.status === 'ok') {
-        if (data.tunnel_active && data.tunnel_url) {
-          currentTunnelUrl = data.tunnel_url;
-          remoteTunnelStatus.textContent = '● Active (Public HTTPS)';
-          remoteTunnelStatus.style.color = '#34c759';
-          btnTogglePublicTunnel.textContent = '⏹ Stop Public Tunnel';
-          btnCopyTunnelUrl.style.display = 'inline-block';
-        } else {
-          currentTunnelUrl = '';
-          remoteTunnelStatus.textContent = 'Inactive';
-          remoteTunnelStatus.style.color = '#8e95a5';
-          btnTogglePublicTunnel.textContent = '⚡ Start Public Tunnel';
-          btnCopyTunnelUrl.style.display = 'none';
-        }
-
         if (data.tailscale_ip) {
-          remoteTailscaleIp.textContent = `${data.tailscale_ip} (Active)`;
-          remoteTailscaleIp.style.color = '#34c759';
+          currentTailscaleIp = data.tailscale_ip;
+          if (remoteTailscaleIp) {
+            remoteTailscaleIp.textContent = `${data.tailscale_ip} (Active)`;
+            remoteTailscaleIp.style.color = '#34c759';
+          }
+          if (btnCopyTailscaleUrl) btnCopyTailscaleUrl.style.display = 'inline-block';
         } else {
-          remoteTailscaleIp.textContent = 'Inactive / Not Connected';
-          remoteTailscaleIp.style.color = '#8e95a5';
+          currentTailscaleIp = '';
+          if (remoteTailscaleIp) {
+            remoteTailscaleIp.textContent = 'Inactive / Not Connected';
+            remoteTailscaleIp.style.color = '#8e95a5';
+          }
+          if (btnCopyTailscaleUrl) btnCopyTailscaleUrl.style.display = 'none';
         }
 
         if (data.ssh && data.ssh.cmd_tmux_remote) {
           currentSshCmd = data.ssh.cmd_tmux_remote;
-          remoteSshCmd.textContent = currentSshCmd;
         } else if (data.ssh && data.ssh.cmd_tailscale) {
           currentSshCmd = data.ssh.cmd_tailscale;
-          remoteSshCmd.textContent = currentSshCmd;
         } else {
-          currentSshCmd = `ssh ${data.ssh?.user || 'killindodo'}@${data.local_ip}`;
-          remoteSshCmd.textContent = currentSshCmd;
+          currentSshCmd = `ssh ${data.ssh?.user || 'killindodo'}@${data.tailscale_ip || data.local_ip}`;
         }
+        if (remoteSshCmd) remoteSshCmd.textContent = currentSshCmd;
       }
     } catch (e) {}
   }
 
-  if (btnTogglePublicTunnel) {
-    btnTogglePublicTunnel.addEventListener('click', async () => {
-      const isStarting = btnTogglePublicTunnel.textContent.includes('Start');
-      btnTogglePublicTunnel.textContent = isStarting ? 'Starting...' : 'Stopping...';
-      try {
-        const action = isStarting ? 'start' : 'stop';
-        await fetch(`/api/tunnel?token=${encodeURIComponent(authToken)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action })
-        });
-        showToast(isStarting ? 'Cloudflare Tunnel starting...' : 'Cloudflare Tunnel stopped');
-        setTimeout(loadTunnelStatus, 3000);
-      } catch (e) {
-        showToast('Tunnel request failed');
-        loadTunnelStatus();
-      }
-    });
-  }
-
-  if (btnCopyTunnelUrl) {
-    btnCopyTunnelUrl.addEventListener('click', () => {
-      if (currentTunnelUrl) {
-        navigator.clipboard.writeText(`${currentTunnelUrl}/?token=${authToken}`);
-        showToast('✓ Public Tunnel URL Copied!');
+  if (btnCopyTailscaleUrl) {
+    btnCopyTailscaleUrl.addEventListener('click', () => {
+      if (currentTailscaleIp) {
+        const url = `http://${currentTailscaleIp}:8080/?token=${authToken}`;
+        navigator.clipboard.writeText(url);
+        showToast('✓ Tailscale Web App Link Copied!');
+      } else {
+        showToast('Tailscale is not active on this PC');
       }
     });
   }
@@ -1008,13 +980,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Trackpad Touch Gestures
+  // Trackpad Touch Gestures & Sensitivity
   const trackpadSurface = document.getElementById('trackpadSurface');
+  const trackpadPointer = document.getElementById('trackpadPointer');
+  const tpSensSlider = document.getElementById('tpSensSlider');
+  const tpSensVal = document.getElementById('tpSensVal');
+
+  let tpSensitivity = parseFloat(localStorage.getItem('continuity_tp_sens')) || 1.5;
+
+  if (tpSensSlider) {
+    tpSensSlider.value = tpSensitivity;
+    if (tpSensVal) tpSensVal.textContent = `${tpSensitivity.toFixed(1)}x`;
+    tpSensSlider.addEventListener('input', () => {
+      tpSensitivity = parseFloat(tpSensSlider.value) || 1.5;
+      if (tpSensVal) tpSensVal.textContent = `${tpSensitivity.toFixed(1)}x`;
+      localStorage.setItem('continuity_tp_sens', tpSensitivity.toString());
+    });
+  }
+
   let tpTouchStartX = 0;
   let tpTouchStartY = 0;
   let tpLastX = 0;
   let tpLastY = 0;
   let tpTouchStartTime = 0;
+  let tpTouchCount = 1;
   let tpHasMoved = false;
   let tpThrottled = false;
 
@@ -1023,15 +1012,24 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       tpTouchStartTime = Date.now();
       tpHasMoved = false;
+      tpTouchCount = e.touches.length;
 
       if (e.touches.length === 1) {
         tpTouchStartX = e.touches[0].clientX;
         tpTouchStartY = e.touches[0].clientY;
         tpLastX = tpTouchStartX;
         tpLastY = tpTouchStartY;
+
+        if (trackpadPointer) {
+          const rect = trackpadSurface.getBoundingClientRect();
+          trackpadPointer.style.left = `${tpTouchStartX - rect.left}px`;
+          trackpadPointer.style.top = `${tpTouchStartY - rect.top}px`;
+          trackpadPointer.style.display = 'block';
+        }
       } else if (e.touches.length === 2) {
         tpTouchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         tpLastY = tpTouchStartY;
+        if (trackpadPointer) trackpadPointer.style.display = 'none';
       }
     }, { passive: false });
 
@@ -1041,8 +1039,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.touches.length === 1) {
         const curX = e.touches[0].clientX;
         const curY = e.touches[0].clientY;
-        const dx = (curX - tpLastX) * 1.5;
-        const dy = (curY - tpLastY) * 1.5;
+        const dx = (curX - tpLastX) * tpSensitivity;
+        const dy = (curY - tpLastY) * tpSensitivity;
 
         if (Math.abs(curX - tpTouchStartX) > 4 || Math.abs(curY - tpTouchStartY) > 4) {
           tpHasMoved = true;
@@ -1050,6 +1048,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tpLastX = curX;
         tpLastY = curY;
+
+        if (trackpadPointer) {
+          const rect = trackpadSurface.getBoundingClientRect();
+          trackpadPointer.style.left = `${curX - rect.left}px`;
+          trackpadPointer.style.top = `${curY - rect.top}px`;
+          trackpadPointer.style.display = 'block';
+        }
 
         if (!tpThrottled && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) {
           tpThrottled = true;
@@ -1063,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } else if (e.touches.length === 2) {
         tpHasMoved = true;
+        if (trackpadPointer) trackpadPointer.style.display = 'none';
         const curY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         const diffY = curY - tpLastY;
         tpLastY = curY;
@@ -1083,15 +1089,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     trackpadSurface.addEventListener('touchend', (e) => {
       e.preventDefault();
+      if (trackpadPointer) trackpadPointer.style.display = 'none';
+
       const duration = Date.now() - tpTouchStartTime;
-      if (!tpHasMoved && duration < 300) {
-        if (e.changedTouches.length === 1) {
+      if (!tpHasMoved && duration < 350) {
+        if (tpTouchCount === 1) {
           fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'click', button: '1' })
           });
           showToast('Left Click');
+        } else if (tpTouchCount === 2) {
+          fetch(`/api/trackpad?token=${encodeURIComponent(authToken)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'click', button: '3' })
+          });
+          showToast('Right Click');
         }
       }
     }, { passive: false });

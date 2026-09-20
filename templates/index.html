@@ -145,7 +145,15 @@
               </div>
               <div class="trackpad-pointer" id="trackpadPointer"></div>
             </div>
-            
+
+            <div class="trackpad-sens-bar">
+              <div class="sens-header">
+                <span>⚡ Cursor Sensitivity</span>
+                <span id="tpSensVal" class="sens-val-badge">1.5x</span>
+              </div>
+              <input type="range" id="tpSensSlider" min="0.5" max="3.5" step="0.1" value="1.5" class="slider-vol">
+            </div>
+
             <div class="trackpad-buttons">
               <button id="btnTrackpadLeft" class="btn-tp">Left Click</button>
               <button id="btnTrackpadMiddle" class="btn-tp">Middle</button>
@@ -435,31 +443,26 @@
           </div>
         </div>
 
-        <!-- Remote Connectivity (Cloudflare & Tailscale) -->
+        <!-- Remote Connectivity (Tailscale Mesh VPN) -->
         <div class="card">
           <div class="card-header">
-            <h3>🌐 Remote Connectivity</h3>
+            <h3>🌐 Tailscale Remote Access</h3>
             <button id="btnRefreshTunnelStatus" class="btn-sm">Refresh</button>
           </div>
           
           <div class="remote-tunnel-box">
             <div class="remote-row">
-              <span class="remote-label">Cloudflare HTTPS:</span>
-              <span class="remote-val" id="remoteTunnelStatus">Inactive</span>
+              <span class="remote-label">Tailscale Node IP:</span>
+              <span class="remote-val" id="remoteTailscaleIp">Detecting...</span>
             </div>
-            <div class="remote-actions-row">
-              <button id="btnTogglePublicTunnel" class="btn-sm">⚡ Start Public Tunnel</button>
-              <button id="btnCopyTunnelUrl" class="btn-sm" style="display:none;">📋 Copy URL</button>
+            <div class="remote-actions-row" style="margin-top: 8px;">
+              <button id="btnCopyTailscaleUrl" class="btn-sm">📋 Copy Web App Link</button>
             </div>
           </div>
 
           <div class="remote-tunnel-box" style="margin-top: 10px;">
             <div class="remote-row">
-              <span class="remote-label">Tailscale Mesh VPN:</span>
-              <span class="remote-val" id="remoteTailscaleIp">...</span>
-            </div>
-            <div class="remote-row" style="margin-top: 6px;">
-              <span class="remote-label">SSH Remote Command:</span>
+              <span class="remote-label">SSH Remote Terminal:</span>
             </div>
             <div class="code-box" id="remoteSshCmd">ssh killindodo@...</div>
             <button id="btnCopySshCmd" class="btn-sm" style="margin-top: 6px;">📋 Copy SSH Command</button>
@@ -509,6 +512,6 @@
 
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
-  <script src="/static/js/app.js?v=2.0"></script>
+  <script src="/static/js/app.js?v=2.1"></script>
 </body>
 </html>

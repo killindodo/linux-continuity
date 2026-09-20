@@ -23,6 +23,7 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-main);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -30,6 +31,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   max-width: 900px;
   margin: 0 auto;
 }
@@ -322,10 +324,18 @@ body {
 }
 
 /* File List */
+.files-list,
 .file-list {
   list-style: none;
   max-height: 240px;
   overflow-y: auto;
+}
+
+.file-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 14px;
 }
 
 .file-item {
@@ -556,6 +566,7 @@ body {
   gap: 6px;
 }
 
+.pts-drawer,
 .procs-drawer {
   background-color: #12151e;
   border-bottom: 2px solid var(--accent);
@@ -564,6 +575,7 @@ body {
   overflow-y: auto;
 }
 
+.pts-header,
 .drawer-header {
   display: flex;
   justify-content: space-between;
@@ -571,6 +583,7 @@ body {
   margin-bottom: 8px;
 }
 
+.pts-header h4,
 .drawer-header h4 {
   font-size: 12px;
   color: #00d2ff;
@@ -622,6 +635,7 @@ body {
   color: #50fa7b;
 }
 
+.pts-loading,
 .procs-loading {
   font-size: 12px;
   color: var(--text-muted);
@@ -892,6 +906,20 @@ body {
   cursor: crosshair;
 }
 
+.trackpad-pointer {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 210, 255, 0.3);
+  border: 2px solid var(--accent-cyan);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: none;
+  box-shadow: 0 0 12px rgba(0, 210, 255, 0.6);
+  z-index: 10;
+}
+
 .trackpad-hint {
   text-align: center;
   color: var(--text-muted);
@@ -909,6 +937,32 @@ body {
 .trackpad-hint small {
   font-size: 10px;
   opacity: 0.7;
+}
+
+.trackpad-sens-bar {
+  margin: 0 10px 10px 10px;
+  background: #141722;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.sens-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c5cde0;
+  margin-bottom: 8px;
+}
+
+.sens-val-badge {
+  color: var(--accent-cyan);
+  background: rgba(0, 210, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: monospace;
 }
 
 .trackpad-buttons {
